@@ -24,38 +24,67 @@
                        LineBreakMode="WordWrap" />
 
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-                    <Button Text="Начало"
+                    <Button x:Name="StartButton"
+                            Text="Начало"
                             Clicked="OnStartClicked" />
-                    <Button Grid.Column="1"
+                    <Button x:Name="EndButton"
+                            Grid.Column="1"
                             Text="Конец"
                             Clicked="OnEndClicked" />
                 </Grid>
 
                 <Border x:Name="DateTimePickerPanel"
-                        IsVisible="False" 
-                        Padding="12"
-                        StrokeShape="RoundRectangle 12">
+                        IsVisible="False"
+                        Padding="16"
+                        StrokeShape="RoundRectangle 18"
+                        BackgroundColor="{AppThemeBinding Light=#F4F0FF, Dark=#272139}"
+                        Stroke="{AppThemeBinding Light=#D8CAFF, Dark=#66558E}">
                     <Border.GestureRecognizers>
                         <SwipeGestureRecognizer Direction="Right"
                                                 Swiped="OnDateTimePickerSwiped" />
                         <SwipeGestureRecognizer Direction="Left"
                                                 Swiped="OnDateTimePickerSwiped" />
                     </Border.GestureRecognizers>
-                    <Grid RowDefinitions="Auto,Auto,Auto"
-                          RowSpacing="8">
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto"
+                          RowSpacing="12">
                         <Label x:Name="DateTimePickerTitle"
-                               FontAttributes="Bold" />
+                               FontAttributes="Bold"
+                               FontSize="18" />
+                        <Grid Grid.Row="1"
+                              ColumnDefinitions="*,*"
+                              ColumnSpacing="8">
+                            <Border x:Name="CalendarModeIndicator"
+                                    Padding="10,8"
+                                    StrokeShape="RoundRectangle 12">
+                                <Label Text="📅 Дата"
+                                       HorizontalOptions="Center"
+                                       FontAttributes="Bold" />
+                            </Border>
+                            <Border x:Name="ClockModeIndicator"
+                                    Grid.Column="1"
+                                    Padding="10,8"
+                                    StrokeShape="RoundRectangle 12">
+                                <Label Text="🕘 Время"
+                                       HorizontalOptions="Center"
+                                       FontAttributes="Bold" />
+                            </Border>
+                        </Grid>
                         <Label x:Name="DateTimePickerHint"
-                               Grid.Row="1"
+                               Grid.Row="2"
                                FontSize="12"
-                               Text="Свайп вправо — время, свайп влево — календарь" />
-                        <DatePicker x:Name="DisplayDatePicker"
-                                    Grid.Row="2"
-                                    DateSelected="OnDisplayDateSelected" />
-                        <TimePicker x:Name="DisplayTimePicker"
-                                    Grid.Row="2"
-                                    IsVisible="False"
-                                    PropertyChanged="OnDisplayTimeChanged" />
+                               HorizontalTextAlignment="Center"
+                               Text="Свайпните влево или вправо, чтобы переключить календарь и циферблат" />
+                        <Grid Grid.Row="3"
+                              Padding="0,4,0,0"
+                              MinimumHeightRequest="64">
+                            <DatePicker x:Name="DisplayDatePicker"
+                                        HorizontalOptions="Fill"
+                                        DateSelected="OnDisplayDateSelected" />
+                            <TimePicker x:Name="DisplayTimePicker"
+                                        HorizontalOptions="Fill"
+                                        IsVisible="False"
+                                        PropertyChanged="OnDisplayTimeChanged" />
+                        </Grid>
                     </Grid>
                 </Border>
             </VerticalStackLayout>
