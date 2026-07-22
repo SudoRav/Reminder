@@ -4,7 +4,7 @@ namespace Reminder;
 
 public static class ReminderDisplayFormatter
 {
-    private static readonly CultureInfo RussianCulture = new("ru-RU");
+    private static readonly CultureInfo RussianCulture = new("ru-RU"); 
 
     public static string GetEditorDisplayText(DateTime? start, DateTime? end)
     {
