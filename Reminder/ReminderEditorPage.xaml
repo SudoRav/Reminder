@@ -16,7 +16,7 @@
 
         <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="12">
             <Button x:Name="DeleteButton"
-                    Text="Удалить"
+                    Text="Завершить"
                     BackgroundColor="#B00020"
                     TextColor="White"
                     Clicked="OnDeleteClicked" />

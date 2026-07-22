@@ -38,9 +38,9 @@ public partial class ReminderEditorPage : ContentPage
         }
 
         bool confirmed = await DisplayAlert(
-            "Удалить напоминание?",
+            "Завершить напоминание?",
             "Напоминание исчезнет из списка и из уведомлений.",
-            "Удалить",
+            "Завершить",
             "Отмена");
 
         if (!confirmed)
