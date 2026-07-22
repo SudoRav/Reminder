@@ -14,14 +14,6 @@ public partial class ReminderEditorPage : ContentPage
     {
         InitializeComponent();
 
-        reminderTextEditor = GetRequiredView<Editor>(nameof(ReminderTextEditor));
-        deleteButton = GetRequiredView<Button>(nameof(DeleteButton));
-        displayPeriodLabel = GetRequiredView<Label>(nameof(DisplayPeriodLabel));
-        dateTimePickerPanel = GetRequiredView<Grid>(nameof(DateTimePickerPanel));
-        dateTimePickerTitle = GetRequiredView<Label>(nameof(DateTimePickerTitle));
-        displayDatePicker = GetRequiredView<DatePicker>(nameof(DisplayDatePicker));
-        displayTimePicker = GetRequiredView<TimePicker>(nameof(DisplayTimePicker));
-
         this.reminder = reminder;
         ReminderTextEditor.Text = reminder?.Text ?? string.Empty;
         displayStart = reminder?.DisplayStart;
@@ -70,7 +62,7 @@ public partial class ReminderEditorPage : ContentPage
 
     private async void OnSaveClicked(object? sender, EventArgs e)
     {
-        string text = reminderTextEditor.Text?.Trim() ?? string.Empty;
+       string text = ReminderTextEditor.Text?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(text))
         {
             await DisplayAlert("Ошибка", "Введите текст напоминания.", "OK");
@@ -90,17 +82,6 @@ public partial class ReminderEditorPage : ContentPage
     private async void OnDeleteClicked(object? sender, EventArgs e)
     {
         if (reminder is null)
-        {
-            return;
-        }
-
-        bool confirmed = await DisplayAlert(
-            "Завершить напоминание?",
-            "Напоминание исчезнет из списка и из уведомлений.",
-            "Завершить",
-            "Отмена");
-
-        if (!confirmed)
         {
             return;
         }

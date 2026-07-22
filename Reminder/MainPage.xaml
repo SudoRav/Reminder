@@ -31,11 +31,6 @@
                             <Label Text="{Binding Text}"
                                    FontSize="18"
                                    LineBreakMode="WordWrap" />
-                            <Button Text="Завершить"
-                                    BackgroundColor="#B00020"
-                                    TextColor="White"
-                                    Clicked="OnCompleteReminderClicked"
-                                    CommandParameter="{Binding .}" />
                         </VerticalStackLayout>
                     </Border>
                 </DataTemplate>
