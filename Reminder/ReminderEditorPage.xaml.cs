@@ -64,8 +64,11 @@ public partial class ReminderEditorPage : ContentPage
             : dateTime.TimeOfDay;
         isUpdatingPickers = false;
 
-        await FocusPickerAsync(DisplayDatePicker);
-        hasDatePickerOpened = true;
+        hasDatePickerOpened = await FocusPickerAsync(DisplayDatePicker);
+        if (!hasDatePickerOpened)
+        {
+            CompleteDateTimeSelection();
+        }
     }
 
     private void OnDisplayDateSelected(object? sender, DateChangedEventArgs e)
@@ -93,8 +96,11 @@ public partial class ReminderEditorPage : ContentPage
 
         isWaitingForDatePicker = false;
         isWaitingForTimePicker = true;
-        await FocusPickerAsync(DisplayTimePicker);
-        hasTimePickerOpened = true;
+        hasTimePickerOpened = await FocusPickerAsync(DisplayTimePicker);
+        if (!hasTimePickerOpened)
+        {
+            CompleteDateTimeSelection();
+        }
     }
 
     private void OnDisplayTimeChanged(object? sender, PropertyChangedEventArgs e)
@@ -124,16 +130,22 @@ public partial class ReminderEditorPage : ContentPage
         ApplySelectedDateTime();
     }
 
-    private static async Task FocusPickerAsync(View picker)
+    private static async Task<bool> FocusPickerAsync(View picker)
     {
         await Task.Delay(150);
 
-        if (OpenPickerWithIsOpenProperty(picker))
+        bool focused = await picker.Dispatcher.DispatchAsync(picker.Focus);
+        if (focused)
         {
-            return;
+            return true;
         }
 
-        picker.Dispatcher.Dispatch(() => picker.Focus());
+        if (OpenPickerWithIsOpenProperty(picker))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static bool OpenPickerWithIsOpenProperty(View picker)
