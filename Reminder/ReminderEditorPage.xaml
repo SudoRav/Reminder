@@ -39,7 +39,6 @@
                       IsEnabled="True"
                       InputTransparent="False">
                     <DatePicker x:Name="DisplayDatePicker"
-                                DateSelected="OnDisplayDateSelected"
                                 Unfocused="OnDisplayDatePickerUnfocused" />
                     <TimePicker x:Name="DisplayTimePicker"
                                 PropertyChanged="OnDisplayTimeChanged"

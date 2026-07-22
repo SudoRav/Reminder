@@ -71,14 +71,6 @@ public partial class ReminderEditorPage : ContentPage
         }
     }
 
-    private void OnDisplayDateSelected(object? sender, DateChangedEventArgs e)
-    {
-        if (!isUpdatingPickers && isWaitingForDatePicker)
-        {
-            _ = ShowTimePickerAsync();
-        }
-    }
-
     private void OnDisplayDatePickerUnfocused(object? sender, FocusEventArgs e)
     {
         if (!isUpdatingPickers && isWaitingForDatePicker && hasDatePickerOpened)
