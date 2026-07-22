@@ -17,6 +17,8 @@ public partial class ReminderEditorPage : ContentPage
     private bool isUpdatingPickers;
     private bool isWaitingForDatePicker;
     private bool isWaitingForTimePicker;
+    private bool hasDatePickerOpened;
+    private bool hasTimePickerOpened;
 
     public event EventHandler<ReminderItem>? SaveRequested;
 
@@ -51,25 +53,21 @@ public partial class ReminderEditorPage : ContentPage
         isUpdatingPickers = true;
         isWaitingForDatePicker = true;
         isWaitingForTimePicker = false;
+        hasDatePickerOpened = false;
+        hasTimePickerOpened = false;
+        StartButton.IsEnabled = false;
+        EndButton.IsEnabled = false;
         DisplayDatePicker.Date = dateTime.Date;
         DisplayTimePicker.Time = dateTime.TimeOfDay == TimeSpan.Zero && selectedBoundary == DisplayBoundary.End
             ? defaultTime
             : dateTime.TimeOfDay;
         isUpdatingPickers = false;
 
-        await Task.Delay(150);
-        DisplayDatePicker.Focus();
+        await FocusPickerAsync(DisplayDatePicker);
+        hasDatePickerOpened = true;
     }
 
     private void OnDisplayDateSelected(object? sender, DateChangedEventArgs e)
-    {
-        if (!isUpdatingPickers)
-        {
-            _ = ShowTimePickerAsync();
-        }
-    }
-
-    private void OnDisplayDatePickerUnfocused(object? sender, FocusEventArgs e)
     {
         if (!isUpdatingPickers && isWaitingForDatePicker)
         {
@@ -77,17 +75,25 @@ public partial class ReminderEditorPage : ContentPage
         }
     }
 
+    private void OnDisplayDatePickerUnfocused(object? sender, FocusEventArgs e)
+    {
+        if (!isUpdatingPickers && isWaitingForDatePicker && hasDatePickerOpened)
+        {
+            _ = ShowTimePickerAsync();
+        }
+    }
+
     private async Task ShowTimePickerAsync()
     {
-        if (!isWaitingForDatePicker)
+        if (!isWaitingForDatePicker || isWaitingForTimePicker)
         {
             return;
         }
 
         isWaitingForDatePicker = false;
         isWaitingForTimePicker = true;
-        await Task.Delay(150);
-        DisplayTimePicker.Focus();
+        await FocusPickerAsync(DisplayTimePicker);
+        hasTimePickerOpened = true;
     }
 
     private void OnDisplayTimeChanged(object? sender, PropertyChangedEventArgs e)
@@ -100,7 +106,7 @@ public partial class ReminderEditorPage : ContentPage
 
     private void OnDisplayTimePickerUnfocused(object? sender, FocusEventArgs e)
     {
-        if (!isUpdatingPickers && isWaitingForTimePicker)
+        if (!isUpdatingPickers && isWaitingForTimePicker && hasTimePickerOpened)
         {
             CompleteDateTimeSelection();
         }
@@ -110,7 +116,17 @@ public partial class ReminderEditorPage : ContentPage
     {
         isWaitingForDatePicker = false;
         isWaitingForTimePicker = false;
+        hasDatePickerOpened = false;
+        hasTimePickerOpened = false;
+        StartButton.IsEnabled = true;
+        EndButton.IsEnabled = true;
         ApplySelectedDateTime();
+    }
+
+    private static async Task FocusPickerAsync(View picker)
+    {
+        await Task.Delay(150);
+        picker.Focus();
     }
 
     private void ApplySelectedDateTime()
