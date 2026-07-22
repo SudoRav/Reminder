@@ -15,6 +15,12 @@ namespace Reminder
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 });
 
+#if ANDROID
+            builder.Services.AddSingleton<IReminderNotificationService, AndroidReminderNotificationService>();
+#else
+            builder.Services.AddSingleton<IReminderNotificationService, ReminderNotificationService>();
+#endif
+
 #if DEBUG
     		builder.Logging.AddDebug();
 #endif

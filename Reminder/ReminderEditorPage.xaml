@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Reminder.ReminderEditorPage"
+             Title="Напоминание">
+    <Grid Padding="24" RowDefinitions="Auto,*,Auto" RowSpacing="16">
+        <Label Text="Текст напоминания"
+               FontAttributes="Bold"
+               FontSize="20" />
+
+        <Editor x:Name="ReminderTextEditor"
+                Grid.Row="1"
+                AutoSize="TextChanges"
+                Placeholder="Введите текст напоминания"
+                SemanticProperties.Hint="Введите текст напоминания" />
+
+        <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="12">
+            <Button x:Name="DeleteButton"
+                    Text="Удалить"
+                    BackgroundColor="#B00020"
+                    TextColor="White"
+                    Clicked="OnDeleteClicked" />
+            <Button Grid.Column="1"
+                    Text="Сохранить"
+                    Clicked="OnSaveClicked" />
+        </Grid>
+    </Grid>
+</ContentPage>
