@@ -33,9 +33,9 @@
                             Clicked="OnEndClicked" />
                 </Grid>
 
-                <Grid HeightRequest="1"
-                      WidthRequest="1"
-                      Opacity="0"
+                <Grid HeightRequest="48"
+                      WidthRequest="48"
+                      Opacity="0.01"
                       IsEnabled="True"
                       InputTransparent="False">
                     <DatePicker x:Name="DisplayDatePicker"
