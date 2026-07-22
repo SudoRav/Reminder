@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Reflection;
 
 namespace Reminder;
 
@@ -126,7 +127,25 @@ public partial class ReminderEditorPage : ContentPage
     private static async Task FocusPickerAsync(View picker)
     {
         await Task.Delay(150);
-        picker.Focus();
+
+        if (OpenPickerWithIsOpenProperty(picker))
+        {
+            return;
+        }
+
+        picker.Dispatcher.Dispatch(() => picker.Focus());
+    }
+
+    private static bool OpenPickerWithIsOpenProperty(View picker)
+    {
+        PropertyInfo? isOpenProperty = picker.GetType().GetProperty("IsOpen");
+        if (isOpenProperty?.PropertyType != typeof(bool) || !isOpenProperty.CanWrite)
+        {
+            return false;
+        }
+
+        isOpenProperty.SetValue(picker, true);
+        return true;
     }
 
     private void ApplySelectedDateTime()
