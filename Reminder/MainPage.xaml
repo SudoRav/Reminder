@@ -13,7 +13,7 @@
         <CollectionView x:Name="RemindersCollectionView"
                         Grid.Row="1"
                         EmptyView="Напоминаний пока нет">
-            <CollectionView.ItemTemplate>
+            <CollectionView.ItemTemplate> 
                 <DataTemplate x:DataType="local:ReminderItem">
                     <Border Margin="0,0,0,12"
                             Padding="16"
