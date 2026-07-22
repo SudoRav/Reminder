@@ -3,7 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="Reminder.ReminderEditorPage"
              Title="Напоминание">
-    <Grid Padding="24" RowDefinitions="*,Auto" RowSpacing="16">
+    <Grid x:Name="EditorRootGrid"
+          Padding="24"
+          RowDefinitions="*,Auto"
+          RowSpacing="16">
         <ScrollView Grid.Row="0">
             <VerticalStackLayout Spacing="12">
                 <Label Text="Текст напоминания"
@@ -28,21 +31,40 @@
                             Clicked="OnEndClicked" />
                 </Grid>
 
-                <Grid x:Name="DateTimePickerPanel"
-                      IsVisible="False"
-                      RowDefinitions="Auto,Auto,Auto"
-                      RowSpacing="8">
-                    <Label x:Name="DateTimePickerTitle"
-                           FontAttributes="Bold" />
-                    <DatePicker x:Name="DisplayDatePicker"
-                                Grid.Row="1" />
-                    <TimePicker x:Name="DisplayTimePicker"
-                                Grid.Row="2" />
-                </Grid>
+                <Border x:Name="DateTimePickerPanel"
+                        IsVisible="False"
+                        Padding="12"
+                        StrokeShape="RoundRectangle 12">
+                    <Border.GestureRecognizers>
+                        <SwipeGestureRecognizer Direction="Right"
+                                                Swiped="OnDateTimePickerSwiped" />
+                        <SwipeGestureRecognizer Direction="Left"
+                                                Swiped="OnDateTimePickerSwiped" />
+                    </Border.GestureRecognizers>
+                    <Grid RowDefinitions="Auto,Auto,Auto"
+                          RowSpacing="8">
+                        <Label x:Name="DateTimePickerTitle"
+                               FontAttributes="Bold" />
+                        <Label x:Name="DateTimePickerHint"
+                               Grid.Row="1"
+                               FontSize="12"
+                               Text="Свайп вправо — время, свайп влево — календарь" />
+                        <DatePicker x:Name="DisplayDatePicker"
+                                    Grid.Row="2"
+                                    DateSelected="OnDisplayDateSelected" />
+                        <TimePicker x:Name="DisplayTimePicker"
+                                    Grid.Row="2"
+                                    IsVisible="False"
+                                    PropertyChanged="OnDisplayTimeChanged" />
+                    </Grid>
+                </Border>
             </VerticalStackLayout>
         </ScrollView>
 
-        <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="12">
+        <Grid x:Name="EditorActionButtons"
+              Grid.Row="1"
+              ColumnDefinitions="*,*"
+              ColumnSpacing="12">
             <Button x:Name="DeleteButton"
                     Text="Завершить"
                     BackgroundColor="#B00020"
