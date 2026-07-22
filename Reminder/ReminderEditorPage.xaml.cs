@@ -3,13 +3,6 @@ namespace Reminder;
 public partial class ReminderEditorPage : ContentPage
 {
     private readonly ReminderItem? reminder;
-    private readonly Editor reminderTextEditor;
-    private readonly Button deleteButton;
-    private readonly Label displayPeriodLabel;
-    private readonly Grid dateTimePickerPanel;
-    private readonly Label dateTimePickerTitle;
-    private readonly DatePicker displayDatePicker;
-    private readonly TimePicker displayTimePicker;
     private DateTime? displayStart;
     private DateTime? displayEnd;
 
@@ -30,48 +23,48 @@ public partial class ReminderEditorPage : ContentPage
         displayTimePicker = GetRequiredView<TimePicker>(nameof(DisplayTimePicker));
 
         this.reminder = reminder;
-        reminderTextEditor.Text = reminder?.Text ?? string.Empty;
+        ReminderTextEditor.Text = reminder?.Text ?? string.Empty;
         displayStart = reminder?.DisplayStart;
         displayEnd = reminder?.DisplayEnd;
-        deleteButton.IsVisible = reminder is not null;
+        DeleteButton.IsVisible = reminder is not null;
         UpdateDisplayPeriodLabel();
     }
 
     private void OnStartClicked(object? sender, EventArgs e)
     {
         DateTime value = displayStart ?? DateTime.Today;
-        displayDatePicker.Date = value.Date;
-        displayTimePicker.Time = displayStart?.TimeOfDay ?? TimeSpan.Zero;
-        dateTimePickerTitle.Text = "Начало показа";
-        dateTimePickerPanel.IsVisible = true;
+        DisplayDatePicker.Date = value.Date;
+        DisplayTimePicker.Time = displayStart?.TimeOfDay ?? TimeSpan.Zero;
+        DateTimePickerTitle.Text = "Начало показа";
+        DateTimePickerPanel.IsVisible = true;
         DetachDateTimePickerHandlers();
-        displayDatePicker.Unfocused += OnStartDateTimePicked;
-        displayTimePicker.Unfocused += OnStartDateTimePicked;
-        displayDatePicker.Focus();
+        DisplayDatePicker.Unfocused += OnStartDateTimePicked;
+        DisplayTimePicker.Unfocused += OnStartDateTimePicked;
+        DisplayDatePicker.Focus();
     }
 
     private void OnEndClicked(object? sender, EventArgs e)
     {
         DateTime value = displayEnd ?? DateTime.Today;
-        displayDatePicker.Date = value.Date;
-        displayTimePicker.Time = displayEnd?.TimeOfDay ?? new TimeSpan(23, 59, 0);
-        dateTimePickerTitle.Text = "Конец показа";
-        dateTimePickerPanel.IsVisible = true;
+        DisplayDatePicker.Date = value.Date;
+        DisplayTimePicker.Time = displayEnd?.TimeOfDay ?? new TimeSpan(23, 59, 0);
+        DateTimePickerTitle.Text = "Конец показа";
+        DateTimePickerPanel.IsVisible = true;
         DetachDateTimePickerHandlers();
-        displayDatePicker.Unfocused += OnEndDateTimePicked;
-        displayTimePicker.Unfocused += OnEndDateTimePicked;
-        displayDatePicker.Focus();
+        DisplayDatePicker.Unfocused += OnEndDateTimePicked;
+        DisplayTimePicker.Unfocused += OnEndDateTimePicked;
+        DisplayDatePicker.Focus();
     }
 
     private void OnStartDateTimePicked(object? sender, FocusEventArgs e)
     {
-        displayStart = displayDatePicker.Date + displayTimePicker.Time;
+        displayStart = DisplayDatePicker.Date + DisplayTimePicker.Time;
         UpdateDisplayPeriodLabel();
     }
 
     private void OnEndDateTimePicked(object? sender, FocusEventArgs e)
     {
-        displayEnd = displayDatePicker.Date + displayTimePicker.Time;
+        displayEnd = DisplayDatePicker.Date + DisplayTimePicker.Time;
         UpdateDisplayPeriodLabel();
     }
 
@@ -118,21 +111,14 @@ public partial class ReminderEditorPage : ContentPage
 
     private void DetachDateTimePickerHandlers()
     {
-        displayDatePicker.Unfocused -= OnStartDateTimePicked;
-        displayTimePicker.Unfocused -= OnStartDateTimePicked;
-        displayDatePicker.Unfocused -= OnEndDateTimePicked;
-        displayTimePicker.Unfocused -= OnEndDateTimePicked;
-    }
-
-    private TView GetRequiredView<TView>(string name)
-        where TView : Element
-    {
-        return this.FindByName<TView>(name)
-            ?? throw new InvalidOperationException($"XAML element '{name}' was not found.");
+        DisplayDatePicker.Unfocused -= OnStartDateTimePicked;
+        DisplayTimePicker.Unfocused -= OnStartDateTimePicked;
+        DisplayDatePicker.Unfocused -= OnEndDateTimePicked;
+        DisplayTimePicker.Unfocused -= OnEndDateTimePicked;
     }
 
     private void UpdateDisplayPeriodLabel()
     {
-        displayPeriodLabel.Text = ReminderDisplayFormatter.GetEditorDisplayText(displayStart, displayEnd);
+        DisplayPeriodLabel.Text = ReminderDisplayFormatter.GetEditorDisplayText(displayStart, displayEnd);
     }
 }
