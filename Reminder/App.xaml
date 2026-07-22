@@ -5,6 +5,8 @@
              x:Class="Reminder.App">
     <Application.Resources>
         <ResourceDictionary>
+            <local:ReminderListPeriodConverter x:Key="ReminderListPeriodConverter" />
+            <local:ReminderListPeriodVisibilityConverter x:Key="ReminderListPeriodVisibilityConverter" />
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Resources/Styles/Colors.xaml" />
                 <ResourceDictionary Source="Resources/Styles/Styles.xaml" />

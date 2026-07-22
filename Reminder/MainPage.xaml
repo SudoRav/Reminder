@@ -22,9 +22,21 @@
                         <Border.GestureRecognizers>
                             <TapGestureRecognizer Tapped="OnReminderTapped" CommandParameter="{Binding .}" />
                         </Border.GestureRecognizers>
-                        <Label Text="{Binding Text}"
-                               FontSize="18"
-                               LineBreakMode="WordWrap" />
+                        <VerticalStackLayout Spacing="10">
+                            <Label Text="{Binding ., Converter={StaticResource ReminderListPeriodConverter}}"
+                                   FontAttributes="Bold"
+                                   FontSize="14"
+                                   IsVisible="{Binding ., Converter={StaticResource ReminderListPeriodVisibilityConverter}}"
+                                   LineBreakMode="WordWrap" />
+                            <Label Text="{Binding Text}"
+                                   FontSize="18"
+                                   LineBreakMode="WordWrap" />
+                            <Button Text="Завершить"
+                                    BackgroundColor="#B00020"
+                                    TextColor="White"
+                                    Clicked="OnCompleteReminderClicked"
+                                    CommandParameter="{Binding .}" />
+                        </VerticalStackLayout>
                     </Border>
                 </DataTemplate>
             </CollectionView.ItemTemplate>

@@ -3,18 +3,46 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="Reminder.ReminderEditorPage"
              Title="Напоминание">
-    <Grid Padding="24" RowDefinitions="Auto,*,Auto" RowSpacing="16">
-        <Label Text="Текст напоминания"
-               FontAttributes="Bold"
-               FontSize="20" />
+    <Grid Padding="24" RowDefinitions="*,Auto" RowSpacing="16">
+        <ScrollView Grid.Row="0">
+            <VerticalStackLayout Spacing="12">
+                <Label Text="Текст напоминания"
+                       FontAttributes="Bold"
+                       FontSize="20" />
 
-        <Editor x:Name="ReminderTextEditor"
-                Grid.Row="1"
-                AutoSize="TextChanges"
-                Placeholder="Введите текст напоминания"
-                SemanticProperties.Hint="Введите текст напоминания" />
+                <Editor x:Name="ReminderTextEditor"
+                        MinimumHeightRequest="180"
+                        AutoSize="TextChanges"
+                        Placeholder="Введите текст напоминания"
+                        SemanticProperties.Hint="Введите текст напоминания" />
 
-        <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="12">
+                <Label x:Name="DisplayPeriodLabel"
+                       FontAttributes="Bold"
+                       LineBreakMode="WordWrap" />
+
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <Button Text="Начало"
+                            Clicked="OnStartClicked" />
+                    <Button Grid.Column="1"
+                            Text="Конец"
+                            Clicked="OnEndClicked" />
+                </Grid>
+
+                <Grid x:Name="DateTimePickerPanel"
+                      IsVisible="False"
+                      RowDefinitions="Auto,Auto,Auto"
+                      RowSpacing="8">
+                    <Label x:Name="DateTimePickerTitle"
+                           FontAttributes="Bold" />
+                    <DatePicker x:Name="DisplayDatePicker"
+                                Grid.Row="1" />
+                    <TimePicker x:Name="DisplayTimePicker"
+                                Grid.Row="2" />
+                </Grid>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="12">
             <Button x:Name="DeleteButton"
                     Text="Завершить"
                     BackgroundColor="#B00020"
