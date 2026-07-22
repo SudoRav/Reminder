@@ -6,6 +6,7 @@ using Android.Content.PM;
 using Android.OS;
 using AndroidX.Core.App;
 using AndroidX.Core.Content;
+using System.Text.Json;
 
 namespace Reminder;
 
@@ -13,6 +14,8 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 {
     private const string ChannelId = "persistent_reminders";
     private const int NotificationPermissionRequestCode = 1001;
+    internal const string CompleteAction = "com.companyname.reminder.COMPLETE_REMINDER";
+    internal const string ReminderIdExtra = "reminder_id";
 
     private readonly Context context;
     private readonly NotificationManager notificationManager;
@@ -43,12 +46,18 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
         PendingIntent? pendingIntent = PendingIntent.GetActivity(context, reminder.Id, launchIntent, flags);
 
+        Intent completeIntent = new(context, typeof(CompleteReminderReceiver));
+        completeIntent.SetAction(CompleteAction);
+        completeIntent.PutExtra(ReminderIdExtra, reminder.Id);
+        PendingIntent? completePendingIntent = PendingIntent.GetBroadcast(context, reminder.Id, completeIntent, flags);
+
         Notification notification = new NotificationCompat.Builder(context, ChannelId)
             .SetSmallIcon(Resource.Drawable.notification_icon)
             .SetContentTitle("Напоминание")
             .SetContentText(reminder.Text)
             .SetStyle(new NotificationCompat.BigTextStyle().BigText(reminder.Text))
             .SetContentIntent(pendingIntent)
+            .AddAction(Resource.Drawable.notification_icon, "Завершить", completePendingIntent)
             .SetOngoing(true)
             .SetAutoCancel(false)
             .SetPriority(NotificationCompat.PriorityDefault)
@@ -96,10 +105,45 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         return status == PermissionStatus.Granted;
     }
 
+
     private sealed class PostNotificationsPermission : Permissions.BasePlatformPermission
     {
         public override (string androidPermission, bool isRuntime)[] RequiredPermissions =>
             [(Manifest.Permission.PostNotifications, true)];
+    }
+
+}
+
+[BroadcastReceiver(Enabled = true, Exported = false)]
+public sealed class CompleteReminderReceiver : BroadcastReceiver
+{
+    public override void OnReceive(Context? context, Intent? intent)
+    {
+        if (context is null || intent?.Action != AndroidReminderNotificationService.CompleteAction)
+        {
+            return;
+        }
+
+        int reminderId = intent.GetIntExtra(AndroidReminderNotificationService.ReminderIdExtra, 0);
+        if (reminderId == 0)
+        {
+            return;
+        }
+
+        string json = Preferences.Default.Get("reminders", "[]");
+        List<ReminderItem> reminders;
+        try
+        {
+            reminders = JsonSerializer.Deserialize<List<ReminderItem>>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
+        }
+        catch (JsonException)
+        {
+            reminders = [];
+        }
+
+        reminders.RemoveAll(reminder => reminder.Id == reminderId);
+        Preferences.Default.Set("reminders", JsonSerializer.Serialize(reminders, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        ((NotificationManager)context.GetSystemService(Context.NotificationService)!).Cancel(reminderId);
     }
 }
 #endif

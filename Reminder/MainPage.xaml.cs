@@ -27,24 +27,33 @@ public partial class MainPage : ContentPage
 
         foreach (ReminderItem reminder in reminders)
         {
-            await notificationService.ShowAsync(reminder);
+            if (ReminderDisplayFormatter.ShouldDisplayNow(reminder, DateTime.Now))
+            {
+                await notificationService.ShowAsync(reminder);
+            }
+            else
+            {
+                notificationService.Cancel(reminder.Id);
+            }
         }
     }
 
     private async void OnCreateClicked(object? sender, EventArgs e)
     {
         var editorPage = new ReminderEditorPage();
-        editorPage.SaveRequested += async (_, text) =>
+        editorPage.SaveRequested += async (_, editedReminder) =>
         {
             var reminder = new ReminderItem
             {
                 Id = GetNextReminderId(),
-                Text = text,
+                Text = editedReminder.Text,
+                DisplayStart = editedReminder.DisplayStart,
+                DisplayEnd = editedReminder.DisplayEnd,
             };
 
             reminders.Add(reminder);
             SaveReminders();
-            await notificationService.ShowAsync(reminder);
+            await ShowOrCancelNotificationAsync(reminder);
         };
 
         await Navigation.PushModalAsync(new NavigationPage(editorPage));
@@ -57,28 +66,62 @@ public partial class MainPage : ContentPage
             return;
         }
 
+        await OpenEditorAsync(reminder);
+    }
+
+    private void OnCompleteReminderClicked(object? sender, EventArgs e)
+    {
+        if ((sender as Button)?.CommandParameter is ReminderItem reminder)
+        {
+            CompleteReminder(reminder);
+        }
+    }
+
+    private async Task OpenEditorAsync(ReminderItem reminder)
+    {
         var editorPage = new ReminderEditorPage(reminder);
-        editorPage.SaveRequested += async (_, text) =>
+        editorPage.SaveRequested += async (_, editedReminder) =>
         {
-            reminder.Text = text;
-            RemindersCollectionView.ItemsSource = null;
-            RemindersCollectionView.ItemsSource = reminders;
+            reminder.Text = editedReminder.Text;
+            reminder.DisplayStart = editedReminder.DisplayStart;
+            reminder.DisplayEnd = editedReminder.DisplayEnd;
+            RefreshReminders();
             SaveReminders();
-            await notificationService.ShowAsync(reminder);
+            await ShowOrCancelNotificationAsync(reminder);
         };
-        editorPage.DeleteRequested += (_, _) =>
-        {
-            reminders.Remove(reminder);
-            SaveReminders();
-            notificationService.Cancel(reminder.Id);
-        };
+        editorPage.DeleteRequested += (_, _) => CompleteReminder(reminder);
 
         await Navigation.PushModalAsync(new NavigationPage(editorPage));
+    }
+
+    private void CompleteReminder(ReminderItem reminder)
+    {
+        reminders.Remove(reminder);
+        SaveReminders();
+        notificationService.Cancel(reminder.Id);
+    }
+
+    private async Task ShowOrCancelNotificationAsync(ReminderItem reminder)
+    {
+        if (ReminderDisplayFormatter.ShouldDisplayNow(reminder, DateTime.Now))
+        {
+            await notificationService.ShowAsync(reminder);
+        }
+        else
+        {
+            notificationService.Cancel(reminder.Id);
+        }
     }
 
     private int GetNextReminderId()
     {
         return reminders.Count == 0 ? 1 : reminders.Max(static reminder => reminder.Id) + 1;
+    }
+
+    private void RefreshReminders()
+    {
+        RemindersCollectionView.ItemsSource = null;
+        RemindersCollectionView.ItemsSource = reminders;
     }
 
     private void SaveReminders()
