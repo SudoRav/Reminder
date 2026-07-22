@@ -32,7 +32,7 @@
                 </Grid>
 
                 <Border x:Name="DateTimePickerPanel"
-                        IsVisible="False"
+                        IsVisible="False" 
                         Padding="12"
                         StrokeShape="RoundRectangle 12">
                     <Border.GestureRecognizers>
