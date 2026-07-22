@@ -15,6 +15,8 @@ public partial class ReminderEditorPage : ContentPage
     private DateTime? displayEnd;
     private DisplayBoundary selectedBoundary;
     private bool isUpdatingPickers;
+    private bool isWaitingForDatePicker;
+    private bool isWaitingForTimePicker;
 
     public event EventHandler<ReminderItem>? SaveRequested;
 
@@ -35,27 +37,25 @@ public partial class ReminderEditorPage : ContentPage
     private void OnStartClicked(object? sender, EventArgs e)
     {
         selectedBoundary = DisplayBoundary.Start;
-        _ = ShowDateTimePickerAsync(displayStart ?? DateTime.Today, TimeSpan.Zero, "Выберите дату начала");
+        _ = ShowDateTimePickerAsync(displayStart ?? DateTime.Today, TimeSpan.Zero);
     }
 
     private void OnEndClicked(object? sender, EventArgs e)
     {
         selectedBoundary = DisplayBoundary.End;
-        _ = ShowDateTimePickerAsync(displayEnd ?? DateTime.Today, new TimeSpan(23, 59, 0), "Выберите дату окончания");
+        _ = ShowDateTimePickerAsync(displayEnd ?? DateTime.Today, new TimeSpan(23, 59, 0));
     }
 
-    private async Task ShowDateTimePickerAsync(DateTime dateTime, TimeSpan defaultTime, string title)
+    private async Task ShowDateTimePickerAsync(DateTime dateTime, TimeSpan defaultTime)
     {
         isUpdatingPickers = true;
+        isWaitingForDatePicker = true;
+        isWaitingForTimePicker = false;
         DisplayDatePicker.Date = dateTime.Date;
         DisplayTimePicker.Time = dateTime.TimeOfDay == TimeSpan.Zero && selectedBoundary == DisplayBoundary.End
             ? defaultTime
             : dateTime.TimeOfDay;
-        DateTimePickerTitle.Text = title;
-        ShowCalendarPicker();
-        DateTimePickerPanel.IsVisible = true;
         isUpdatingPickers = false;
-        ApplySelectedDateTime();
 
         await Task.Delay(150);
         DisplayDatePicker.Focus();
@@ -65,29 +65,52 @@ public partial class ReminderEditorPage : ContentPage
     {
         if (!isUpdatingPickers)
         {
-            ApplySelectedDateTime();
+            _ = ShowTimePickerAsync();
         }
+    }
+
+    private void OnDisplayDatePickerUnfocused(object? sender, FocusEventArgs e)
+    {
+        if (!isUpdatingPickers && isWaitingForDatePicker)
+        {
+            _ = ShowTimePickerAsync();
+        }
+    }
+
+    private async Task ShowTimePickerAsync()
+    {
+        if (!isWaitingForDatePicker)
+        {
+            return;
+        }
+
+        isWaitingForDatePicker = false;
+        isWaitingForTimePicker = true;
+        await Task.Delay(150);
+        DisplayTimePicker.Focus();
     }
 
     private void OnDisplayTimeChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (!isUpdatingPickers && e.PropertyName == TimePicker.TimeProperty.PropertyName)
         {
-            ApplySelectedDateTime();
+            CompleteDateTimeSelection();
         }
     }
 
-    private void OnDateTimePickerSwiped(object? sender, SwipedEventArgs e)
+    private void OnDisplayTimePickerUnfocused(object? sender, FocusEventArgs e)
     {
-        if (DisplayDatePicker.IsVisible)
+        if (!isUpdatingPickers && isWaitingForTimePicker)
         {
-            ShowClockPicker();
-            DisplayTimePicker.Focus();
-            return;
+            CompleteDateTimeSelection();
         }
+    }
 
-        ShowCalendarPicker();
-        DisplayDatePicker.Focus();
+    private void CompleteDateTimeSelection()
+    {
+        isWaitingForDatePicker = false;
+        isWaitingForTimePicker = false;
+        ApplySelectedDateTime();
     }
 
     private void ApplySelectedDateTime()
@@ -104,24 +127,6 @@ public partial class ReminderEditorPage : ContentPage
         }
 
         UpdateDisplayPeriodLabel();
-    }
-
-    private void ShowCalendarPicker()
-    {
-        DisplayDatePicker.IsVisible = true;
-        DisplayTimePicker.IsVisible = false;
-        CalendarModeIndicator.BackgroundColor = Color.FromArgb("#7C4DFF");
-        ClockModeIndicator.BackgroundColor = Colors.Transparent;
-        DateTimePickerHint.Text = "Свайпните влево или вправо, чтобы перейти к выбору времени";
-    }
-
-    private void ShowClockPicker()
-    {
-        DisplayDatePicker.IsVisible = false;
-        DisplayTimePicker.IsVisible = true;
-        CalendarModeIndicator.BackgroundColor = Colors.Transparent;
-        ClockModeIndicator.BackgroundColor = Color.FromArgb("#7C4DFF");
-        DateTimePickerHint.Text = "Свайпните влево или вправо, чтобы вернуться к календарю";
     }
 
     private async void OnSaveClicked(object? sender, EventArgs e)
