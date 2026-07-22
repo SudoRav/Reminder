@@ -1,10 +1,20 @@
+using System.ComponentModel;
+
 namespace Reminder;
 
 public partial class ReminderEditorPage : ContentPage
 {
+    private enum DisplayBoundary
+    {
+        Start,
+        End,
+    }
+
     private readonly ReminderItem? reminder;
     private DateTime? displayStart;
     private DateTime? displayEnd;
+    private DisplayBoundary selectedBoundary;
+    private bool isUpdatingPickers;
 
     public event EventHandler<ReminderItem>? SaveRequested;
 
@@ -24,45 +34,91 @@ public partial class ReminderEditorPage : ContentPage
 
     private void OnStartClicked(object? sender, EventArgs e)
     {
-        DateTime value = displayStart ?? DateTime.Today;
-        DisplayDatePicker.Date = value.Date;
-        DisplayTimePicker.Time = displayStart?.TimeOfDay ?? TimeSpan.Zero;
-        DateTimePickerTitle.Text = "Начало показа";
-        DateTimePickerPanel.IsVisible = true;
-        DetachDateTimePickerHandlers();
-        DisplayDatePicker.Unfocused += OnStartDateTimePicked;
-        DisplayTimePicker.Unfocused += OnStartDateTimePicked;
-        DisplayDatePicker.Focus();
+        selectedBoundary = DisplayBoundary.Start;
+        ShowDateTimePicker(displayStart ?? DateTime.Today, TimeSpan.Zero, "Начало показа");
     }
 
     private void OnEndClicked(object? sender, EventArgs e)
     {
-        DateTime value = displayEnd ?? DateTime.Today;
-        DisplayDatePicker.Date = value.Date;
-        DisplayTimePicker.Time = displayEnd?.TimeOfDay ?? new TimeSpan(23, 59, 0);
-        DateTimePickerTitle.Text = "Конец показа";
+        selectedBoundary = DisplayBoundary.End;
+        ShowDateTimePicker(displayEnd ?? DateTime.Today, new TimeSpan(23, 59, 0), "Конец показа");
+    }
+
+    private void ShowDateTimePicker(DateTime dateTime, TimeSpan defaultTime, string title)
+    {
+        isUpdatingPickers = true;
+        DisplayDatePicker.Date = dateTime.Date;
+        DisplayTimePicker.Time = dateTime.TimeOfDay == TimeSpan.Zero && selectedBoundary == DisplayBoundary.End
+            ? defaultTime
+            : dateTime.TimeOfDay;
+        DateTimePickerTitle.Text = title;
+        ShowCalendarPicker();
         DateTimePickerPanel.IsVisible = true;
-        DetachDateTimePickerHandlers();
-        DisplayDatePicker.Unfocused += OnEndDateTimePicked;
-        DisplayTimePicker.Unfocused += OnEndDateTimePicked;
-        DisplayDatePicker.Focus();
+        isUpdatingPickers = false;
+        ApplySelectedDateTime();
     }
 
-    private void OnStartDateTimePicked(object? sender, FocusEventArgs e)
+    private void OnDisplayDateSelected(object? sender, DateChangedEventArgs e)
     {
-        displayStart = DisplayDatePicker.Date + DisplayTimePicker.Time;
+        if (!isUpdatingPickers)
+        {
+            ApplySelectedDateTime();
+        }
+    }
+
+    private void OnDisplayTimeChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (!isUpdatingPickers && e.PropertyName == TimePicker.TimeProperty.PropertyName)
+        {
+            ApplySelectedDateTime();
+        }
+    }
+
+    private void OnDateTimePickerSwiped(object? sender, SwipedEventArgs e)
+    {
+        if (e.Direction == SwipeDirection.Right)
+        {
+            ShowClockPicker();
+            return;
+        }
+
+        if (e.Direction == SwipeDirection.Left)
+        {
+            ShowCalendarPicker();
+        }
+    }
+
+    private void ApplySelectedDateTime()
+    {
+        DateTime value = DisplayDatePicker.Date + DisplayTimePicker.Time;
+
+        if (selectedBoundary == DisplayBoundary.Start)
+        {
+            displayStart = value;
+        }
+        else
+        {
+            displayEnd = value;
+        }
+
         UpdateDisplayPeriodLabel();
     }
 
-    private void OnEndDateTimePicked(object? sender, FocusEventArgs e)
+    private void ShowCalendarPicker()
     {
-        displayEnd = DisplayDatePicker.Date + DisplayTimePicker.Time;
-        UpdateDisplayPeriodLabel();
+        DisplayDatePicker.IsVisible = true;
+        DisplayTimePicker.IsVisible = false;
+    }
+
+    private void ShowClockPicker()
+    {
+        DisplayDatePicker.IsVisible = false;
+        DisplayTimePicker.IsVisible = true;
     }
 
     private async void OnSaveClicked(object? sender, EventArgs e)
     {
-       string text = ReminderTextEditor.Text?.Trim() ?? string.Empty;
+        string text = ReminderTextEditor.Text?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(text))
         {
             await DisplayAlert("Ошибка", "Введите текст напоминания.", "OK");
@@ -88,14 +144,6 @@ public partial class ReminderEditorPage : ContentPage
 
         DeleteRequested?.Invoke(this, EventArgs.Empty);
         await Navigation.PopModalAsync();
-    }
-
-    private void DetachDateTimePickerHandlers()
-    {
-        DisplayDatePicker.Unfocused -= OnStartDateTimePicked;
-        DisplayTimePicker.Unfocused -= OnStartDateTimePicked;
-        DisplayDatePicker.Unfocused -= OnEndDateTimePicked;
-        DisplayTimePicker.Unfocused -= OnEndDateTimePicked;
     }
 
     private void UpdateDisplayPeriodLabel()
