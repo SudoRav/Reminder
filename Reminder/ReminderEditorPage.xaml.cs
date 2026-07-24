@@ -52,11 +52,11 @@ public partial class ReminderEditorPage : ContentPage
         TimeSpan initialTime = dateTime?.TimeOfDay ?? defaultTime;
 
         isUpdatingPickers = true;
-        DisplayDatePicker.Date = initialDate;
-        DisplayTimePicker.Time = initialTime;
+        OverlayDatePicker.Date = initialDate;
+        OverlayTimePicker.Time = initialTime;
         isUpdatingPickers = false;
 
-        DateTimePickerTitle.Text = selectedBoundary == DisplayBoundary.Start
+        DateTimeOverlayTitle.Text = selectedBoundary == DisplayBoundary.Start
             ? "Select start date & time"
             : "Select end date & time";
         UpdateSelectedDateTimeLabels();
@@ -65,12 +65,12 @@ public partial class ReminderEditorPage : ContentPage
 
     private void OnDateRowTapped(object? sender, TappedEventArgs e)
     {
-        _ = OpenPickerAsync(DisplayDatePicker);
+        _ = OpenPickerAsync(OverlayDatePicker);
     }
 
     private void OnTimeRowTapped(object? sender, TappedEventArgs e)
     {
-        _ = OpenPickerAsync(DisplayTimePicker);
+        _ = OpenPickerAsync(OverlayTimePicker);
     }
 
     private void OnDisplayDateSelected(object? sender, DateChangedEventArgs e)
@@ -102,8 +102,8 @@ public partial class ReminderEditorPage : ContentPage
 
     private void UpdateSelectedDateTimeLabels()
     {
-        SelectedDateLabel.Text = DisplayDatePicker.Date.ToString("d MMM yyyy", CultureInfo.CurrentCulture);
-        SelectedTimeLabel.Text = DisplayTimePicker.Time.ToString(@"hh\:mm", CultureInfo.CurrentCulture);
+        SelectedDateLabel.Text = OverlayDatePicker.Date.ToString("d MMM yyyy", CultureInfo.CurrentCulture);
+        SelectedTimeLabel.Text = OverlayTimePicker.Time.ToString(@"hh\:mm", CultureInfo.CurrentCulture);
     }
 
     private static async Task OpenPickerAsync(View picker)
