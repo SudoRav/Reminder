@@ -131,7 +131,7 @@ public partial class ReminderEditorPage : ContentPage
 
     private void ApplySelectedDateTime()
     {
-        DateTime value = DisplayDatePicker.Date + DisplayTimePicker.Time;
+        DateTime value = OverlayDatePicker.Date + OverlayTimePicker.Time;
 
         if (selectedBoundary == DisplayBoundary.Start)
         {
