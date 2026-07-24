@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Reflection;
 
 namespace Reminder;
@@ -16,10 +17,6 @@ public partial class ReminderEditorPage : ContentPage
     private DateTime? displayEnd;
     private DisplayBoundary selectedBoundary;
     private bool isUpdatingPickers;
-    private bool isWaitingForDatePicker;
-    private bool isWaitingForTimePicker;
-    private bool hasDatePickerOpened;
-    private bool hasTimePickerOpened;
 
     public event EventHandler<ReminderItem>? SaveRequested;
 
@@ -37,64 +34,50 @@ public partial class ReminderEditorPage : ContentPage
         UpdateDisplayPeriodLabel();
     }
 
-    private void OnStartClicked(object? sender, EventArgs e) 
-    { 
+    private void OnStartClicked(object? sender, EventArgs e)
+    {
         selectedBoundary = DisplayBoundary.Start;
-        _ = ShowDateTimePickerAsync(displayStart ?? DateTime.Today, TimeSpan.Zero);
+        ShowDateTimePicker(displayStart, TimeSpan.Zero);
     }
 
     private void OnEndClicked(object? sender, EventArgs e)
     {
         selectedBoundary = DisplayBoundary.End;
-        _ = ShowDateTimePickerAsync(displayEnd ?? DateTime.Today, new TimeSpan(23, 59, 0));
+        ShowDateTimePicker(displayEnd, new TimeSpan(23, 59, 0));
     }
 
-    private async Task ShowDateTimePickerAsync(DateTime dateTime, TimeSpan defaultTime)
+    private void ShowDateTimePicker(DateTime? dateTime, TimeSpan defaultTime)
     {
+        DateTime initialDate = dateTime?.Date ?? DateTime.Today;
+        TimeSpan initialTime = dateTime?.TimeOfDay ?? defaultTime;
+
         isUpdatingPickers = true;
-        isWaitingForDatePicker = true;
-        isWaitingForTimePicker = false;
-        hasDatePickerOpened = false;
-        hasTimePickerOpened = false;
-        StartButton.IsEnabled = false;
-        EndButton.IsEnabled = false;
-        DisplayDatePicker.Date = dateTime.Date;
-        DisplayTimePicker.Time = dateTime.TimeOfDay == TimeSpan.Zero && selectedBoundary == DisplayBoundary.End
-            ? defaultTime
-            : dateTime.TimeOfDay;
-        DisplayDatePicker.IsVisible = true;
-        DisplayTimePicker.IsVisible = true;
-        DateTimePickerPanel.IsVisible = true;
+        DisplayDatePicker.Date = initialDate;
+        DisplayTimePicker.Time = initialTime;
         isUpdatingPickers = false;
 
-        hasDatePickerOpened = await FocusPickerAsync(DisplayDatePicker);
-        if (!hasDatePickerOpened)
-        {
-            CompleteDateTimeSelection();
-        }
+        DateTimePickerTitle.Text = selectedBoundary == DisplayBoundary.Start
+            ? "Select start date & time"
+            : "Select end date & time";
+        UpdateSelectedDateTimeLabels();
+        DateTimePickerOverlay.IsVisible = true;
     }
 
-    private void OnDisplayDatePickerUnfocused(object? sender, FocusEventArgs e)
+    private void OnDateRowTapped(object? sender, TappedEventArgs e)
     {
-        if (!isUpdatingPickers && isWaitingForDatePicker && hasDatePickerOpened)
-        {
-            _ = ShowTimePickerAsync();
-        }
+        _ = OpenPickerAsync(DisplayDatePicker);
     }
 
-    private async Task ShowTimePickerAsync()
+    private void OnTimeRowTapped(object? sender, TappedEventArgs e)
     {
-        if (!isWaitingForDatePicker || isWaitingForTimePicker)
-        {
-            return;
-        }
+        _ = OpenPickerAsync(DisplayTimePicker);
+    }
 
-        isWaitingForDatePicker = false;
-        isWaitingForTimePicker = true;
-        hasTimePickerOpened = await FocusPickerAsync(DisplayTimePicker);
-        if (!hasTimePickerOpened)
+    private void OnDisplayDateSelected(object? sender, DateChangedEventArgs e)
+    {
+        if (!isUpdatingPickers)
         {
-            CompleteDateTimeSelection();
+            UpdateSelectedDateTimeLabels();
         }
     }
 
@@ -102,44 +85,36 @@ public partial class ReminderEditorPage : ContentPage
     {
         if (!isUpdatingPickers && e.PropertyName == TimePicker.TimeProperty.PropertyName)
         {
-            CompleteDateTimeSelection(); 
-        }
-    }
-    private void OnDisplayTimePickerUnfocused(object? sender, FocusEventArgs e)
-    {
-        if (!isUpdatingPickers && isWaitingForTimePicker && hasTimePickerOpened)
-        {
-            CompleteDateTimeSelection();
+            UpdateSelectedDateTimeLabels();
         }
     }
 
-    private void CompleteDateTimeSelection()
+    private void OnCancelDateTimeClicked(object? sender, EventArgs e)
     {
-        isWaitingForDatePicker = false;
-        isWaitingForTimePicker = false;
-        hasDatePickerOpened = false;
-        hasTimePickerOpened = false;
-        StartButton.IsEnabled = true;
-        EndButton.IsEnabled = true;
+        DateTimePickerOverlay.IsVisible = false;
+    }
+
+    private void OnSaveDateTimeClicked(object? sender, EventArgs e)
+    {
         ApplySelectedDateTime();
+        DateTimePickerOverlay.IsVisible = false;
     }
 
-    private static async Task<bool> FocusPickerAsync(View picker)
+    private void UpdateSelectedDateTimeLabels()
     {
-        await Task.Delay(150);
+        SelectedDateLabel.Text = DisplayDatePicker.Date.ToString("d MMM yyyy", CultureInfo.CurrentCulture);
+        SelectedTimeLabel.Text = DisplayTimePicker.Time.ToString(@"hh\:mm", CultureInfo.CurrentCulture);
+    }
+
+    private static async Task OpenPickerAsync(View picker)
+    {
+        await Task.Delay(50);
 
         bool focused = await picker.Dispatcher.DispatchAsync(picker.Focus);
-        if (focused)
+        if (!focused)
         {
-            return true;
+            OpenPickerWithIsOpenProperty(picker);
         }
-
-        if (OpenPickerWithIsOpenProperty(picker))
-        {
-            return true;
-        }
-
-        return false;
     }
 
     private static bool OpenPickerWithIsOpenProperty(View picker)
@@ -153,6 +128,7 @@ public partial class ReminderEditorPage : ContentPage
         isOpenProperty.SetValue(picker, true);
         return true;
     }
+
     private void ApplySelectedDateTime()
     {
         DateTime value = DisplayDatePicker.Date + DisplayTimePicker.Time;
@@ -168,8 +144,6 @@ public partial class ReminderEditorPage : ContentPage
 
         UpdateDisplayPeriodLabel();
     }
-
-
 
     private async void OnSaveClicked(object? sender, EventArgs e)
     {
