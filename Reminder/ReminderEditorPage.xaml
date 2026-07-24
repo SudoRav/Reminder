@@ -32,59 +32,6 @@
                             Text="Конец"
                             Clicked="OnEndClicked" />
                 </Grid>
-
-                <Border x:Name="DateTimePickerPanel"
-                        IsVisible="False"
-                        Padding="16"
-                        StrokeShape="RoundRectangle 18"
-                        BackgroundColor="{AppThemeBinding Light=#F4F0FF, Dark=#272139}"
-                        Stroke="{AppThemeBinding Light=#D8CAFF, Dark=#66558E}">
-                    <Grid RowDefinitions="Auto,Auto,Auto,Auto"
-                          RowSpacing="12">
-                        <Label x:Name="DateTimePickerTitle"
-                               FontAttributes="Bold"
-                               FontSize="18" />
-                        <Grid Grid.Row="1"
-                              ColumnDefinitions="*,*"
-                              ColumnSpacing="8">
-                            <Border x:Name="CalendarModeIndicator"
-                                    Padding="10,8"
-                                    StrokeShape="RoundRectangle 12">
-                                <Label Text="📅 Дата"
-                                       HorizontalOptions="Center"
-                                       FontAttributes="Bold" />
-                            </Border>
-                            <Border x:Name="ClockModeIndicator"
-                                    Grid.Column="1"
-                                    Padding="10,8"
-                                    StrokeShape="RoundRectangle 12">
-                                <Label Text="🕘 Время"
-                                       HorizontalOptions="Center"
-                                       FontAttributes="Bold" />
-                            </Border>
-                        </Grid>
-                        <Label x:Name="DateTimePickerHint"
-                               Grid.Row="2"
-                               FontSize="12"
-                               HorizontalTextAlignment="Center"
-                               Text="Свайпните влево или вправо, чтобы переключить календарь и циферблат" />
-                        <Grid Grid.Row="3"
-      ColumnDefinitions="*,*"
-      ColumnSpacing="12"
-      Padding="0,4,0,0">
-
-                            <DatePicker x:Name="DisplayDatePicker"
-                Grid.Column="0"
-                HorizontalOptions="Fill"/>
-                <!--DateSelected="OnDisplayDateSelected"/>-->
-
-                            <TimePicker x:Name="DisplayTimePicker"
-                Grid.Column="1"
-                HorizontalOptions="Fill"
-                PropertyChanged="OnDisplayTimeChanged"/>
-                        </Grid>
-                    </Grid>
-                </Border>
             </VerticalStackLayout>
         </ScrollView>
 
@@ -100,6 +47,110 @@
             <Button Grid.Column="1"
                     Text="Сохранить"
                     Clicked="OnSaveClicked" />
+        </Grid>
+
+        <Grid x:Name="DateTimePickerOverlay"
+              Grid.RowSpan="2"
+              Padding="16"
+              BackgroundColor="#99000000"
+              IsVisible="False">
+            <Border Padding="28,24"
+                    MaximumWidthRequest="560"
+                    VerticalOptions="Center"
+                    HorizontalOptions="Fill"
+                    StrokeShape="RoundRectangle 24"
+                    BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#111820}"
+                    Stroke="{AppThemeBinding Light=#E7E2F2, Dark=#26313D}">
+                <Grid RowDefinitions="Auto,Auto,Auto"
+                      RowSpacing="22">
+                    <Label x:Name="DateTimePickerTitle"
+                           Text="Select date &amp; time"
+                           FontAttributes="Bold"
+                           FontSize="22" />
+
+                    <Border Grid.Row="1"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 18"
+                            BackgroundColor="{AppThemeBinding Light=#EBEEF3, Dark=#4A5056}">
+                        <Grid RowDefinitions="Auto,1,Auto">
+                            <Grid Padding="20,16"
+                                  ColumnDefinitions="Auto,*,Auto"
+                                  ColumnSpacing="16">
+                                <Label Text="📅"
+                                       FontSize="24"
+                                       VerticalOptions="Center" />
+                                <VerticalStackLayout Grid.Column="1"
+                                                     Spacing="2">
+                                    <Label Text="Date"
+                                           FontAttributes="Bold" />
+                                    <Label x:Name="SelectedDateLabel"
+                                           Text="~" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="2"
+                                       Text="›"
+                                       FontSize="32"
+                                       VerticalOptions="Center" />
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnDateRowTapped" />
+                                </Grid.GestureRecognizers>
+                            </Grid>
+
+                            <BoxView Grid.Row="1"
+                                     HeightRequest="1"
+                                     BackgroundColor="{AppThemeBinding Light=#D3D7DD, Dark=#111820}" />
+
+                            <Grid Grid.Row="2"
+                                  Padding="20,16"
+                                  ColumnDefinitions="Auto,*,Auto"
+                                  ColumnSpacing="16">
+                                <Label Text="🕘"
+                                       FontSize="24"
+                                       VerticalOptions="Center" />
+                                <VerticalStackLayout Grid.Column="1"
+                                                     Spacing="2">
+                                    <Label Text="Time"
+                                           FontAttributes="Bold" />
+                                    <Label x:Name="SelectedTimeLabel"
+                                           Text="~" />
+                                </VerticalStackLayout>
+                                <Label Grid.Column="2"
+                                       Text="›"
+                                       FontSize="32"
+                                       VerticalOptions="Center" />
+                                <Grid.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnTimeRowTapped" />
+                                </Grid.GestureRecognizers>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <HorizontalStackLayout Grid.Row="2"
+                                           HorizontalOptions="End"
+                                           Spacing="24">
+                        <Button Text="Отмена"
+                                BackgroundColor="Transparent"
+                                Clicked="OnCancelDateTimeClicked" />
+                        <Button Text="Save"
+                                BackgroundColor="Transparent"
+                                Clicked="OnSaveDateTimeClicked" />
+                    </HorizontalStackLayout>
+                </Grid>
+            </Border>
+
+            <DatePicker x:Name="DisplayDatePicker"
+                        DateSelected="OnDisplayDateSelected"
+                        Opacity="0.01"
+                        HeightRequest="1"
+                        WidthRequest="1"
+                        HorizontalOptions="Start"
+                        VerticalOptions="Start" />
+            <TimePicker x:Name="DisplayTimePicker"
+                        PropertyChanged="OnDisplayTimeChanged"
+                        Opacity="0.01"
+                        HeightRequest="1"
+                        WidthRequest="1"
+                        HorizontalOptions="Start"
+                        VerticalOptions="Start" />
         </Grid>
     </Grid>
 </ContentPage>
