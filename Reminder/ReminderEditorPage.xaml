@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Reminder.ReminderEditorPage"
+             Title="Напоминание">
+    <Grid x:Name="EditorRootGrid"
+          Padding="24"
+          RowDefinitions="*,Auto"
+          RowSpacing="16">
+        <ScrollView Grid.Row="0">
+            <VerticalStackLayout Spacing="12">
+                <Label Text="Текст напоминания"
+                       FontAttributes="Bold"
+                       FontSize="20" />
+
+                <Editor x:Name="ReminderTextEditor"
+                        MinimumHeightRequest="180"
+                        AutoSize="TextChanges"
+                        Placeholder="Введите текст напоминания"
+                        SemanticProperties.Hint="Введите текст напоминания" />
+
+                <Label x:Name="DisplayPeriodLabel"
+                       FontAttributes="Bold"
+                       LineBreakMode="WordWrap" />
+
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <Button x:Name="StartButton"
+                            Text="Начало"
+                            Clicked="OnStartClicked" />
+                    <Button x:Name="EndButton"
+                            Grid.Column="1"
+                            Text="Конец"
+                            Clicked="OnEndClicked" />
+                </Grid>
+
+                <Border x:Name="DateTimePickerPanel"
+                        IsVisible="False"
+                        Padding="16"
+                        StrokeShape="RoundRectangle 18"
+                        BackgroundColor="{AppThemeBinding Light=#F4F0FF, Dark=#272139}"
+                        Stroke="{AppThemeBinding Light=#D8CAFF, Dark=#66558E}">
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto"
+                          RowSpacing="12">
+                        <Label x:Name="DateTimePickerTitle"
+                               FontAttributes="Bold"
+                               FontSize="18" />
+                        <Grid Grid.Row="1"
+                              ColumnDefinitions="*,*"
+                              ColumnSpacing="8">
+                            <Border x:Name="CalendarModeIndicator"
+                                    Padding="10,8"
+                                    StrokeShape="RoundRectangle 12">
+                                <Label Text="📅 Дата"
+                                       HorizontalOptions="Center"
+                                       FontAttributes="Bold" />
+                            </Border>
+                            <Border x:Name="ClockModeIndicator"
+                                    Grid.Column="1"
+                                    Padding="10,8"
+                                    StrokeShape="RoundRectangle 12">
+                                <Label Text="🕘 Время"
+                                       HorizontalOptions="Center"
+                                       FontAttributes="Bold" />
+                            </Border>
+                        </Grid>
+                        <Label x:Name="DateTimePickerHint"
+                               Grid.Row="2"
+                               FontSize="12"
+                               HorizontalTextAlignment="Center"
+                               Text="Свайпните влево или вправо, чтобы переключить календарь и циферблат" />
+                        <Grid Grid.Row="3"
+      ColumnDefinitions="*,*"
+      ColumnSpacing="12"
+      Padding="0,4,0,0">
+
+                            <DatePicker x:Name="DisplayDatePicker"
+                Grid.Column="0"
+                HorizontalOptions="Fill"/>
+                <!--DateSelected="OnDisplayDateSelected"/>-->
+
+                            <TimePicker x:Name="DisplayTimePicker"
+                Grid.Column="1"
+                HorizontalOptions="Fill"
+                PropertyChanged="OnDisplayTimeChanged"/>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <Grid x:Name="EditorActionButtons"
+              Grid.Row="1"
+              ColumnDefinitions="*,*"
+              ColumnSpacing="12">
+            <Button x:Name="DeleteButton"
+                    Text="Завершить"
+                    BackgroundColor="#B00020"
+                    TextColor="White"
+                    Clicked="OnDeleteClicked" />
+            <Button Grid.Column="1"
+                    Text="Сохранить"
+                    Clicked="OnSaveClicked" />
+        </Grid>
+    </Grid>
+</ContentPage>

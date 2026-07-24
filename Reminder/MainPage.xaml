@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:Reminder"
+             x:Class="Reminder.MainPage"
+             Title="Напоминания">
+    <Grid Padding="24" RowDefinitions="Auto,*,Auto" RowSpacing="20">
+        <Label Text="Основной список"
+               FontAttributes="Bold"
+               FontSize="28"
+               SemanticProperties.HeadingLevel="Level1" /> 
+
+        <CollectionView x:Name="RemindersCollectionView"
+                        Grid.Row="1"
+
+                        EmptyView="Напоминаний пока нет">
+            <CollectionView.ItemTemplate> 
+                <DataTemplate x:DataType="local:ReminderItem">
+                    <Border Margin="0,0,0,12"
+                            Padding="16"
+                            StrokeShape="RoundRectangle 12"
+                            BackgroundColor="{AppThemeBinding Light=#FFF8D6, Dark=#4B421D}">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnReminderTapped" CommandParameter="{Binding .}" />
+                        </Border.GestureRecognizers>
+                        <VerticalStackLayout Spacing="10">
+                            <Label Text="{Binding ., Converter={StaticResource ReminderListPeriodConverter}}"
+                                   FontAttributes="Bold"
+                                   FontSize="14"
+                                   IsVisible="{Binding ., Converter={StaticResource ReminderListPeriodVisibilityConverter}}"
+                                   LineBreakMode="WordWrap" />
+                            <Label Text="{Binding Text}"
+                                   FontSize="18"
+                                   LineBreakMode="WordWrap" />
+                        </VerticalStackLayout>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <Button Grid.Row="2"
+                Text="Создать"
+                Clicked="OnCreateClicked"
+                HorizontalOptions="Fill" />
+    </Grid>
+</ContentPage>
