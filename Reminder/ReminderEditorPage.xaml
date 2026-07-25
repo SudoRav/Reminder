@@ -9,12 +9,8 @@
           RowSpacing="16">
         <ScrollView Grid.Row="0">
             <VerticalStackLayout Spacing="12">
-                <Label Text="Текст напоминания"
-                       FontAttributes="Bold"
-                       FontSize="20" />
-
                 <Editor x:Name="ReminderTextEditor"
-                        MinimumHeightRequest="180"
+                        MinimumHeightRequest="230"
                         AutoSize="TextChanges"
                         Placeholder="Введите текст напоминания"
                         SemanticProperties.Hint="Введите текст напоминания" />
@@ -90,6 +86,13 @@
                                        Text="›"
                                        FontSize="32"
                                        VerticalOptions="Center" />
+                                <DatePicker x:Name="OverlayDatePicker"
+                                            Grid.ColumnSpan="3"
+                                            DateSelected="OnDisplayDateSelected"
+                                            Opacity="0.01"
+                                            HorizontalOptions="Fill"
+                                            VerticalOptions="Fill"
+                                            BackgroundColor="Transparent" />
                                 <Grid.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnDateRowTapped" />
                                 </Grid.GestureRecognizers>
@@ -117,6 +120,13 @@
                                        Text="›"
                                        FontSize="32"
                                        VerticalOptions="Center" />
+                                <TimePicker x:Name="OverlayTimePicker"
+                                            Grid.ColumnSpan="3"
+                                            PropertyChanged="OnDisplayTimeChanged"
+                                            Opacity="0.01"
+                                            HorizontalOptions="Fill"
+                                            VerticalOptions="Fill"
+                                            BackgroundColor="Transparent" />
                                 <Grid.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnTimeRowTapped" />
                                 </Grid.GestureRecognizers>
@@ -129,28 +139,13 @@
                                            Spacing="24">
                         <Button Text="Отмена"
                                 BackgroundColor="Transparent"
-                                Clicked="OnCancelDateTimeClicked" />
+                                Clicked="OnCancelDateTimeClicked" TextColor="White"/>
                         <Button Text="Save"
                                 BackgroundColor="Transparent"
-                                Clicked="OnSaveDateTimeClicked" />
+                                Clicked="OnSaveDateTimeClicked" TextColor="White"/>
                     </HorizontalStackLayout>
                 </Grid>
             </Border>
-
-            <DatePicker x:Name="OverlayDatePicker"
-                        DateSelected="OnDisplayDateSelected"
-                        Opacity="0.01"
-                        HeightRequest="1"
-                        WidthRequest="1"
-                        HorizontalOptions="Start"
-                        VerticalOptions="Start" />
-            <TimePicker x:Name="OverlayTimePicker"
-                        PropertyChanged="OnDisplayTimeChanged"
-                        Opacity="0.01"
-                        HeightRequest="1"
-                        WidthRequest="1"
-                        HorizontalOptions="Start"
-                        VerticalOptions="Start" />
         </Grid>
     </Grid>
 </ContentPage>

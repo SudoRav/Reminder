@@ -43,13 +43,32 @@ public partial class ReminderEditorPage : ContentPage
     private void OnEndClicked(object? sender, EventArgs e)
     {
         selectedBoundary = DisplayBoundary.End;
-        ShowDateTimePicker(displayEnd, new TimeSpan(23, 59, 0));
+
+        ShowDateTimePicker(
+            displayEnd ?? DateTime.Today.AddDays(1).AddHours(23).AddMinutes(59),
+            new TimeSpan(23, 59, 0));
     }
 
     private void ShowDateTimePicker(DateTime? dateTime, TimeSpan defaultTime)
     {
-        DateTime initialDate = dateTime?.Date ?? DateTime.Today;
-        TimeSpan initialTime = dateTime?.TimeOfDay ?? defaultTime;
+        DateTime initialDate;
+        TimeSpan initialTime;
+
+        if (dateTime.HasValue)
+        {
+            initialDate = dateTime.Value.Date;
+            initialTime = dateTime.Value.TimeOfDay;
+        }
+        else if (selectedBoundary == DisplayBoundary.End)
+        {
+            initialDate = DateTime.Today.AddDays(1);
+            initialTime = new TimeSpan(23, 59, 0);
+        }
+        else
+        {
+            initialDate = DateTime.Today;
+            initialTime = defaultTime;
+        }
 
         isUpdatingPickers = true;
         OverlayDatePicker.Date = initialDate;
@@ -59,6 +78,7 @@ public partial class ReminderEditorPage : ContentPage
         DateTimeOverlayTitle.Text = selectedBoundary == DisplayBoundary.Start
             ? "Select start date & time"
             : "Select end date & time";
+
         UpdateSelectedDateTimeLabels();
         DateTimePickerOverlay.IsVisible = true;
     }

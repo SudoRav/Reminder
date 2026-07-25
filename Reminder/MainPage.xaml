@@ -5,10 +5,6 @@
              x:Class="Reminder.MainPage"
              Title="Напоминания">
     <Grid Padding="24" RowDefinitions="Auto,*,Auto" RowSpacing="20">
-        <Label Text="Основной список"
-               FontAttributes="Bold"
-               FontSize="28"
-               SemanticProperties.HeadingLevel="Level1" /> 
 
         <CollectionView x:Name="RemindersCollectionView"
                         Grid.Row="1"

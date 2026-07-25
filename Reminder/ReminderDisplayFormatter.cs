@@ -10,17 +10,17 @@ public static class ReminderDisplayFormatter
     {
         if (start is null && end is null)
         {
-            return "Показывать Постоянно";
+            return "Постоянно";
         }
 
         if (start is not null && end is not null)
         {
-            return $"Показывать с {FormatStart(start.Value)} по {FormatEnd(end.Value)}";
+            return $"С {FormatStart(start.Value)} по {FormatEnd(end.Value)}";
         }
 
         return start is not null
-            ? $"Показывать с {FormatStart(start.Value)}"
-            : $"Показывать до {FormatEnd(end!.Value)}";
+            ? $"С {FormatStart(start.Value)}"
+            : $"По {FormatEnd(end!.Value)}";
     }
 
     public static string GetListDisplayText(ReminderItem reminder)
@@ -57,18 +57,24 @@ public static class ReminderDisplayFormatter
 
     private static string FormatStart(DateTime value)
     {
-        return FormatDateTime(value, TimeSpan.Zero);
+        return FormatDateTime(value, new TimeSpan(0, 0, 0));
     }
 
     private static string FormatEnd(DateTime value)
     {
-        return FormatDateTime(value, new TimeSpan(23, 59, 0));
+        return FormatDateTime(value, new TimeSpan(23, 59, 59));
     }
+
+    private static readonly string[] Months =
+  {
+    "ЯНВ.", "ФЕВ.", "МАР.", "АПР.", "МАЙ.", "ИЮН.",
+    "ИЮЛ.", "АВГ.", "СЕН.", "ОКТ.", "НОЯ.", "ДЕК."
+};
 
     private static string FormatDateTime(DateTime value, TimeSpan hiddenTime)
     {
-        string month = RussianCulture.DateTimeFormat.GetMonthName(value.Month);
-        string date = $"{value:dd.MM}({month}).{value:yyyy}";
+        string month = Months[value.Month - 1];
+        string date = $"{value:dd.MM} {month} {value:yy}";
         return value.TimeOfDay == hiddenTime ? date : $"{date} {value:HH:mm}";
     }
 }

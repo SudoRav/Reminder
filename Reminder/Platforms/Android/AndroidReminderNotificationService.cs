@@ -53,7 +53,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
         Notification notification = new NotificationCompat.Builder(context, ChannelId)
             .SetSmallIcon(Resource.Drawable.notification_icon)
-            .SetContentTitle("Напоминание")
+            .SetContentTitle(ReminderDisplayFormatter.GetEditorDisplayText(reminder.DisplayStart, reminder.DisplayEnd))
             .SetContentText(reminder.Text)
             .SetStyle(new NotificationCompat.BigTextStyle().BigText(reminder.Text))
             .SetContentIntent(pendingIntent)
