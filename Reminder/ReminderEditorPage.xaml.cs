@@ -16,10 +16,10 @@ public partial class ReminderEditorPage : ContentPage
     private readonly ReminderItem? reminder;
     private DateTime? displayStart;
     private DateTime? displayEnd;
-    private readonly ObservableCollection<string> notificationTimeDisplays = [];
-    private readonly List<DateTime> notificationTimes;
+    private readonly ObservableCollection<NotificationTimeItem> notificationTimes;
     private DisplayBoundary selectedBoundary;
     private bool isUpdatingPickers;
+    private NotificationTimeItem? editingNotification;
 
     public event EventHandler<ReminderItem>? SaveRequested;
 
@@ -33,10 +33,17 @@ public partial class ReminderEditorPage : ContentPage
         ReminderTextEditor.Text = reminder?.Text ?? string.Empty;
         displayStart = reminder?.DisplayStart;
         displayEnd = reminder?.DisplayEnd;
-        notificationTimes = reminder?.NotificationTimes.Order().ToList() ?? [];
-        NotificationTimesCollectionView.ItemsSource = notificationTimeDisplays;
+
+        notificationTimes = new ObservableCollection<NotificationTimeItem>(
+    reminder?.NotificationTimes
+        .Order()
+        .Select(x => new NotificationTimeItem(x))
+    ?? Enumerable.Empty<NotificationTimeItem>());
+
+        NotificationTimesCollectionView.ItemsSource = notificationTimes;
+
         DeleteButton.IsVisible = reminder is not null;
-        RefreshNotificationTimes();
+
         UpdateDisplayPeriodLabel();
     }
 
@@ -159,10 +166,26 @@ public partial class ReminderEditorPage : ContentPage
     {
         DateTime value = OverlayDatePicker.Date + OverlayTimePicker.Time;
 
+        // Редактирование времени уведомления
+        if (editingNotification is not null)
+        {
+            editingNotification.Time = value;
+
+            SortNotifications();
+
+            NotificationTimesCollectionView.ItemsSource = null;
+            NotificationTimesCollectionView.ItemsSource = notificationTimes;
+
+            editingNotification = null;
+            return;
+        }
+
+        // Редактирование начала отображения
         if (selectedBoundary == DisplayBoundary.Start)
         {
             displayStart = value;
         }
+        // Редактирование конца отображения
         else
         {
             displayEnd = value;
@@ -186,7 +209,10 @@ public partial class ReminderEditorPage : ContentPage
             Text = text,
             DisplayStart = displayStart,
             DisplayEnd = displayEnd,
-            NotificationTimes = notificationTimes.Order().ToList(),
+            NotificationTimes = notificationTimes
+    .Select(x => x.Time)
+    .Order()
+    .ToList(),
         });
         await Navigation.PopModalAsync();
     }
@@ -225,21 +251,59 @@ public partial class ReminderEditorPage : ContentPage
             return;
         }
 
-        DateTime notificationTime = displayStart.Value - offset;
-        if (!notificationTimes.Contains(notificationTime))
-        {
-            notificationTimes.Add(notificationTime);
-        }
+        //DateTime notificationTime = displayStart.Value - offset;
 
-        RefreshNotificationTimes();
+        //if (!notificationTimes.Any(x => x.Time == notificationTime))
+        //{
+        //    notificationTimes.Add(new NotificationTimeItem(notificationTime));
+        //    SortNotifications();
+        //}
+
+        if (StartRadioButton.IsChecked)
+            AddNotificationTimeAsync(displayStart.Value - offset);
+        else
+            AddNotificationTimeAsync(displayStart.Value - offset);
     }
 
-    private void RefreshNotificationTimes()
+    private void AddNotificationTimeAsync(DateTime notificationTime)
     {
-        notificationTimeDisplays.Clear();
-        foreach (DateTime notificationTime in notificationTimes.Order())
+        if (!notificationTimes.Any(x => x.Time == notificationTime))
         {
-            notificationTimeDisplays.Add(ReminderDisplayFormatter.FormatNotificationTime(notificationTime));
+            notificationTimes.Add(new NotificationTimeItem(notificationTime));
+            SortNotifications();
+        }
+    }
+
+    private void OnDeleteNotificationClicked(object? sender, EventArgs e)
+    {
+        if (sender is Button button &&
+            button.CommandParameter is NotificationTimeItem item)
+        {
+            notificationTimes.Remove(item);
+        }
+    }
+
+    private void OnNotificationTimeTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is Label label &&
+            label.BindingContext is NotificationTimeItem item)
+        {
+            editingNotification = item;
+
+            ShowDateTimePicker(item.Time, item.Time.TimeOfDay);
+        }
+    }
+
+    private void SortNotifications()
+    {
+        List<NotificationTimeItem> sorted =
+            notificationTimes.OrderBy(x => x.Time).ToList();
+
+        notificationTimes.Clear();
+
+        foreach (NotificationTimeItem item in sorted)
+        {
+            notificationTimes.Add(item);
         }
     }
 

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:Reminder"
              x:Class="Reminder.ReminderEditorPage"
              Title="Напоминание">
     <Grid x:Name="EditorRootGrid"
@@ -29,6 +30,18 @@
                             Clicked="OnEndClicked" />
                 </Grid>
 
+                <RadioButton
+    x:Name="StartRadioButton"
+    Content="Начало"
+    GroupName="NotificationTarget"
+    CheckedChanged="OnNotificationTargetChanged" />
+
+                <RadioButton
+    x:Name="EndRadioButton"
+    Content="Конец"
+    GroupName="NotificationTarget"
+    CheckedChanged="OnNotificationTargetChanged" />
+
                 <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
                     <Button Text="За Неделю"
                             Clicked="OnAddWeekNotificationClicked" />
@@ -41,16 +54,35 @@
                 </Grid>
 
                 <CollectionView x:Name="NotificationTimesCollectionView"
-                                EmptyView="Оповещения не добавлены"
-                                MaximumHeightRequest="180">
+                EmptyView="Оповещения не добавлены"
+                MaximumHeightRequest="180">
+
                     <CollectionView.ItemTemplate>
-                        <DataTemplate x:DataType="x:String">
+                        <DataTemplate>
                             <Border Margin="0,0,0,8"
-                                    Padding="12"
-                                    StrokeShape="RoundRectangle 8"
-                                    BackgroundColor="{AppThemeBinding Light=#EEF4FF, Dark=#1F2A36}">
-                                <Label Text="{Binding .}"
-                                       FontSize="14" />
+            Padding="12"
+            StrokeShape="RoundRectangle 8"
+            BackgroundColor="{AppThemeBinding Light=#EEF4FF, Dark=#1F2A36}">
+
+                                <Grid ColumnDefinitions="*,Auto">
+
+                                    <Label Text="{Binding DisplayText}"
+                   VerticalOptions="Center">
+
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer
+                        Tapped="OnNotificationTimeTapped"
+                        CommandParameter="{Binding .}" />
+                                        </Label.GestureRecognizers>
+
+                                    </Label>
+
+                                    <Button Grid.Column="1"
+                    Text="Удалить"
+                    CommandParameter="{Binding .}"
+                    Clicked="OnDeleteNotificationClicked"/>
+
+                                </Grid>
                             </Border>
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
