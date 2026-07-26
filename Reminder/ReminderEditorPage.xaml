@@ -4,9 +4,9 @@
              x:Class="Reminder.ReminderEditorPage"
              Title="Напоминание">
     <Grid x:Name="EditorRootGrid"
-          Padding="24"
+          Padding="16"
           RowDefinitions="*,Auto"
-          RowSpacing="16">
+          RowSpacing="0">
         <ScrollView Grid.Row="0">
             <VerticalStackLayout Spacing="12">
                 <Editor x:Name="ReminderTextEditor"

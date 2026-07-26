@@ -76,8 +76,8 @@ public partial class ReminderEditorPage : ContentPage
         isUpdatingPickers = false;
 
         DateTimeOverlayTitle.Text = selectedBoundary == DisplayBoundary.Start
-            ? "Select start date & time"
-            : "Select end date & time";
+            ? "Выберите дату/время начала"
+            : "Выберите дату/время конца";
 
         UpdateSelectedDateTimeLabels();
         DateTimePickerOverlay.IsVisible = true;

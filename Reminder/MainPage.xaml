@@ -4,11 +4,10 @@
              xmlns:local="clr-namespace:Reminder"
              x:Class="Reminder.MainPage"
              Title="Напоминания">
-    <Grid Padding="24" RowDefinitions="Auto,*,Auto" RowSpacing="20">
+    <Grid Padding="16" RowDefinitions="Auto,*,Auto" RowSpacing="0">
 
         <CollectionView x:Name="RemindersCollectionView"
                         Grid.Row="1"
-
                         EmptyView="Напоминаний пока нет">
             <CollectionView.ItemTemplate> 
                 <DataTemplate x:DataType="local:ReminderItem">

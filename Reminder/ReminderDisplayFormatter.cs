@@ -15,7 +15,7 @@ public static class ReminderDisplayFormatter
 
         if (start is not null && end is not null)
         {
-            return $"С {FormatStart(start.Value)} по {FormatEnd(end.Value)}";
+            return $"{FormatStart(start.Value)} — {FormatEnd(end.Value)}";
         }
 
         return start is not null
@@ -32,12 +32,12 @@ public static class ReminderDisplayFormatter
 
         if (reminder.DisplayStart is not null && reminder.DisplayEnd is not null)
         {
-            return $"С {FormatStart(reminder.DisplayStart.Value)} по {FormatEnd(reminder.DisplayEnd.Value)}";
+            return $"{FormatStart(reminder.DisplayStart.Value)} — {FormatEnd(reminder.DisplayEnd.Value)}";
         }
 
         return reminder.DisplayStart is not null
             ? $"С {FormatStart(reminder.DisplayStart.Value)}"
-            : $"До {FormatEnd(reminder.DisplayEnd!.Value)}";
+            : $"По {FormatEnd(reminder.DisplayEnd!.Value)}";
     }
 
     public static bool ShouldDisplayNow(ReminderItem reminder, DateTime now)
@@ -62,7 +62,7 @@ public static class ReminderDisplayFormatter
 
     private static string FormatEnd(DateTime value)
     {
-        return FormatDateTime(value, new TimeSpan(23, 59, 59));
+        return FormatDateTime(value, new TimeSpan(23, 59, 0));
     }
 
     private static readonly string[] Months =
@@ -74,7 +74,8 @@ public static class ReminderDisplayFormatter
     private static string FormatDateTime(DateTime value, TimeSpan hiddenTime)
     {
         string month = Months[value.Month - 1];
-        string date = $"{value:dd.MM} {month} {value:yy}";
+        //string date = $"{value:dd.MM} {month} {value:yy}";
+        string date = $"{value:dd.MM} {month}";
         return value.TimeOfDay == hiddenTime ? date : $"{date} {value:HH:mm}";
     }
 }
