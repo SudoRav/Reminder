@@ -289,17 +289,17 @@ public sealed class ReminderOverlayService : Service
             Orientation = Orientation.Vertical,
         };
         container.SetPadding(36, 28, 36, 28);
-        container.SetBackgroundColor(Color.White);
+        container.SetBackgroundColor(Android.Graphics.Color.White);
 
         var textView = new TextView(this)
         {
             Text = reminder.Text,
             TextSize = 18,
         };
-        textView.SetTextColor(Color.Black);
+        textView.SetTextColor(Android.Graphics.Color.Black);
         container.AddView(textView);
 
-        var button = new Button(this) { Text = "Завершить" };
+        var button = new Android.Widget.Button(this) { Text = "Завершить" };
         button.Click += (_, _) =>
         {
             SendBroadcast(new Android.Content.Intent(this, typeof(CompleteReminderReceiver))
