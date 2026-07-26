@@ -1,5 +1,6 @@
 ﻿using Android.App;
 using Android.Content.PM;
+using Android.Content;
 using Android.OS;
 using Android.Views;
 
@@ -12,6 +13,28 @@ namespace Reminder
         {
             base.OnCreate(savedInstanceState);
             Window?.SetSoftInputMode(SoftInput.AdjustResize);
+            HandleIntent(Intent);
+        }
+
+        protected override void OnNewIntent(Intent? intent)
+        {
+            base.OnNewIntent(intent);
+            Intent = intent;
+            HandleIntent(intent);
+        }
+
+        private static void HandleIntent(Intent? intent)
+        {
+            if (intent?.Action != AndroidReminderNotificationService.OpenEditorAction)
+            {
+                return;
+            }
+
+            int reminderId = intent.GetIntExtra(AndroidReminderNotificationService.ReminderIdExtra, 0);
+            if (reminderId != 0)
+            {
+                MainThread.BeginInvokeOnMainThread(() => AndroidReminderNotificationService.NotifyReminderEditorRequested(reminderId));
+            }
         }
     }
 }
