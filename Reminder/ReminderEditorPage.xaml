@@ -30,17 +30,41 @@
                             Clicked="OnEndClicked" />
                 </Grid>
 
-                <RadioButton
-    x:Name="StartRadioButton"
-    Content="Начало"
-    GroupName="NotificationTarget"
-    CheckedChanged="OnNotificationTargetChanged" />
+                <Border Stroke="{AppThemeBinding Light=Gray, Dark=Gray}"
+        StrokeThickness="1"
+        StrokeShape="RoundRectangle 8"
+        Padding="0">
 
-                <RadioButton
-    x:Name="EndRadioButton"
-    Content="Конец"
-    GroupName="NotificationTarget"
-    CheckedChanged="OnNotificationTargetChanged" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="0">
+
+                        <RadioButton
+            x:Name="StartRadioButton"
+            Grid.Column="0"
+            GroupName="NotificationTarget"
+            Content="Начало"
+            IsChecked="True"
+            CheckedChanged="OnNotificationTargetChanged"
+            HorizontalOptions="Fill"
+            VerticalOptions="Fill" />
+
+                        <BoxView
+            Grid.Column="0"
+            HorizontalOptions="End"
+            WidthRequest="1"
+            Color="{AppThemeBinding Light=Gray, Dark=Gray}" />
+
+                        <RadioButton
+            x:Name="EndRadioButton"
+            Grid.Column="1"
+            GroupName="NotificationTarget"
+            Content="Конец"
+            CheckedChanged="OnNotificationTargetChanged"
+            HorizontalOptions="Fill"
+            VerticalOptions="Fill" />
+
+                    </Grid>
+
+                </Border>
 
                 <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
                     <Button Text="За Неделю"
@@ -60,7 +84,7 @@
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
                             <Border Margin="0,0,0,8"
-            Padding="12"
+            Padding="30,0"
             StrokeShape="RoundRectangle 8"
             BackgroundColor="{AppThemeBinding Light=#EEF4FF, Dark=#1F2A36}">
 

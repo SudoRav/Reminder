@@ -44,6 +44,9 @@ public partial class ReminderEditorPage : ContentPage
 
         DeleteButton.IsVisible = reminder is not null;
 
+        StartRadioButton.IsChecked = true;
+        EndRadioButton.IsChecked = true;
+
         UpdateDisplayPeriodLabel();
     }
 
@@ -245,27 +248,33 @@ public partial class ReminderEditorPage : ContentPage
 
     private async Task AddNotificationTimeAsync(TimeSpan offset)
     {
-        if (displayStart is null)
+        DateTime? targetDateTime = StartRadioButton.IsChecked
+            ? displayStart
+            : displayEnd;
+
+        if (targetDateTime is null)
         {
-            await DisplayAlert("Ошибка", "Сначала выберите дату/время начала.", "OK");
+            string targetName = StartRadioButton.IsChecked ? "начала" : "конца";
+            await DisplayAlert("Ошибка", $"Сначала выберите дату/время {targetName}.", "OK");
             return;
         }
 
-        //DateTime notificationTime = displayStart.Value - offset;
-
-        //if (!notificationTimes.Any(x => x.Time == notificationTime))
-        //{
-        //    notificationTimes.Add(new NotificationTimeItem(notificationTime));
-        //    SortNotifications();
-        //}
-
-        if (StartRadioButton.IsChecked)
-            AddNotificationTimeAsync(displayStart.Value - offset);
-        else
-            AddNotificationTimeAsync(displayStart.Value - offset);
+        AddNotificationTime(targetDateTime.Value - offset);
     }
 
-    private void AddNotificationTimeAsync(DateTime notificationTime)
+    private void OnNotificationTargetChanged(object? sender, CheckedChangedEventArgs e)
+    {
+        if (!e.Value || sender is not RadioButton radioButton)
+        {
+            return;
+        }
+
+        selectedBoundary = radioButton == EndRadioButton
+            ? DisplayBoundary.End
+            : DisplayBoundary.Start;
+    }
+
+    private void AddNotificationTime(DateTime notificationTime)
     {
         if (!notificationTimes.Any(x => x.Time == notificationTime))
         {
