@@ -6,11 +6,11 @@ public static class ReminderDisplayFormatter
 {
     private static readonly CultureInfo RussianCulture = new("ru-RU"); 
 
-    public static string GetEditorDisplayText(DateTime? start, DateTime? end)
+    public static string GetDisplayText(DateTime? start, DateTime? end, string emptyPeriodText = "Постоянно")
     {
         if (start is null && end is null)
         {
-            return "Постоянно";
+            return emptyPeriodText;
         }
 
         if (start is not null && end is not null)
@@ -23,21 +23,14 @@ public static class ReminderDisplayFormatter
             : $"По {FormatEnd(end!.Value)}";
     }
 
-    public static string GetListDisplayText(ReminderItem reminder)
+    public static string GetDisplayText(ReminderItem reminder, string emptyPeriodText = "Постоянно")
     {
-        if (reminder.DisplayStart is null && reminder.DisplayEnd is null)
-        {
-            return string.Empty;
-        }
+        return GetDisplayText(reminder.DisplayStart, reminder.DisplayEnd, emptyPeriodText);
+    }
 
-        if (reminder.DisplayStart is not null && reminder.DisplayEnd is not null)
-        {
-            return $"{FormatStart(reminder.DisplayStart.Value)} — {FormatEnd(reminder.DisplayEnd.Value)}";
-        }
-
-        return reminder.DisplayStart is not null
-            ? $"С {FormatStart(reminder.DisplayStart.Value)}"
-            : $"По {FormatEnd(reminder.DisplayEnd!.Value)}";
+    public static string FormatNotificationTime(DateTime value)
+    {
+        return FormatDateTime(value, TimeSpan.MinValue);
     }
 
     public static bool ShouldDisplayNow(ReminderItem reminder, DateTime now)

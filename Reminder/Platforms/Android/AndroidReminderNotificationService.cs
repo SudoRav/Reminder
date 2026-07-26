@@ -20,6 +20,13 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     private readonly Context context;
     private readonly NotificationManager notificationManager;
 
+    public static event Action<int>? ReminderCompleted;
+
+    internal static void NotifyReminderCompleted(int reminderId)
+    {
+        ReminderCompleted?.Invoke(reminderId);
+    }
+
     public AndroidReminderNotificationService()
     {
         context = Platform.AppContext;
@@ -53,7 +60,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
         Notification notification = new NotificationCompat.Builder(context, ChannelId)
             .SetSmallIcon(Resource.Drawable.notification_icon)
-            .SetContentTitle(ReminderDisplayFormatter.GetEditorDisplayText(reminder.DisplayStart, reminder.DisplayEnd))
+            .SetContentTitle(ReminderDisplayFormatter.GetDisplayText(reminder.DisplayStart, reminder.DisplayEnd))
             .SetContentText(reminder.Text)
             .SetStyle(new NotificationCompat.BigTextStyle().BigText(reminder.Text))
             .SetContentIntent(pendingIntent)
@@ -144,6 +151,7 @@ public sealed class CompleteReminderReceiver : BroadcastReceiver
         reminders.RemoveAll(reminder => reminder.Id == reminderId);
         Preferences.Default.Set("reminders", JsonSerializer.Serialize(reminders, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
         ((NotificationManager)context.GetSystemService(Context.NotificationService)!).Cancel(reminderId);
+        MainThread.BeginInvokeOnMainThread(() => AndroidReminderNotificationService.NotifyReminderCompleted(reminderId));
     }
 }
 #endif
