@@ -9,4 +9,6 @@ public sealed class ReminderItem
     public DateTime? DisplayStart { get; set; }
 
     public DateTime? DisplayEnd { get; set; }
+
+    public List<DateTime> NotificationTimes { get; set; } = [];
 }

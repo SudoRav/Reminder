@@ -19,11 +19,14 @@ public partial class MainPage : ContentPage
 
         reminders = new ObservableCollection<ReminderItem>(store.Load());
         RemindersCollectionView.ItemsSource = reminders;
+        SubscribeToNotificationCompletion();
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+
+        ReloadReminders();
 
         foreach (ReminderItem reminder in reminders)
         {
@@ -49,6 +52,7 @@ public partial class MainPage : ContentPage
                 Text = editedReminder.Text,
                 DisplayStart = editedReminder.DisplayStart,
                 DisplayEnd = editedReminder.DisplayEnd,
+                NotificationTimes = editedReminder.NotificationTimes,
             };
 
             reminders.Add(reminder);
@@ -85,6 +89,7 @@ public partial class MainPage : ContentPage
             reminder.Text = editedReminder.Text;
             reminder.DisplayStart = editedReminder.DisplayStart;
             reminder.DisplayEnd = editedReminder.DisplayEnd;
+            reminder.NotificationTimes = editedReminder.NotificationTimes;
             RefreshReminders();
             SaveReminders();
             await ShowOrCancelNotificationAsync(reminder);
@@ -96,9 +101,23 @@ public partial class MainPage : ContentPage
 
     private void CompleteReminder(ReminderItem reminder)
     {
-        reminders.Remove(reminder);
-        SaveReminders();
-        notificationService.Cancel(reminder.Id);
+        CompleteReminder(reminder.Id, saveReminders: true);
+    }
+
+    private void CompleteReminder(int reminderId, bool saveReminders)
+    {
+        ReminderItem? reminder = reminders.FirstOrDefault(item => item.Id == reminderId);
+        if (reminder is not null)
+        {
+            reminders.Remove(reminder);
+        }
+
+        if (saveReminders)
+        {
+            SaveReminders();
+        }
+
+        notificationService.Cancel(reminderId);
     }
 
     private async Task ShowOrCancelNotificationAsync(ReminderItem reminder)
@@ -122,6 +141,25 @@ public partial class MainPage : ContentPage
     {
         RemindersCollectionView.ItemsSource = null;
         RemindersCollectionView.ItemsSource = reminders;
+    }
+
+    private void ReloadReminders()
+    {
+        reminders.Clear();
+        foreach (ReminderItem reminder in store.Load())
+        {
+            reminders.Add(reminder);
+        }
+    }
+
+    private void SubscribeToNotificationCompletion()
+    {
+#if ANDROID
+        AndroidReminderNotificationService.ReminderCompleted += reminderId =>
+        {
+            MainThread.BeginInvokeOnMainThread(() => CompleteReminder(reminderId, saveReminders: false));
+        };
+#endif
     }
 
     private void SaveReminders()

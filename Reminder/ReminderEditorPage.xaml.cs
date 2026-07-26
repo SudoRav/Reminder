@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Reflection;
@@ -15,6 +16,8 @@ public partial class ReminderEditorPage : ContentPage
     private readonly ReminderItem? reminder;
     private DateTime? displayStart;
     private DateTime? displayEnd;
+    private readonly ObservableCollection<string> notificationTimeDisplays = [];
+    private readonly List<DateTime> notificationTimes;
     private DisplayBoundary selectedBoundary;
     private bool isUpdatingPickers;
 
@@ -30,7 +33,10 @@ public partial class ReminderEditorPage : ContentPage
         ReminderTextEditor.Text = reminder?.Text ?? string.Empty;
         displayStart = reminder?.DisplayStart;
         displayEnd = reminder?.DisplayEnd;
+        notificationTimes = reminder?.NotificationTimes.Order().ToList() ?? [];
+        NotificationTimesCollectionView.ItemsSource = notificationTimeDisplays;
         DeleteButton.IsVisible = reminder is not null;
+        RefreshNotificationTimes();
         UpdateDisplayPeriodLabel();
     }
 
@@ -180,6 +186,7 @@ public partial class ReminderEditorPage : ContentPage
             Text = text,
             DisplayStart = displayStart,
             DisplayEnd = displayEnd,
+            NotificationTimes = notificationTimes.Order().ToList(),
         });
         await Navigation.PopModalAsync();
     }
@@ -195,8 +202,49 @@ public partial class ReminderEditorPage : ContentPage
         await Navigation.PopModalAsync();
     }
 
+    private async void OnAddWeekNotificationClicked(object? sender, EventArgs e)
+    {
+        await AddNotificationTimeAsync(TimeSpan.FromDays(7));
+    }
+
+    private async void OnAddDayNotificationClicked(object? sender, EventArgs e)
+    {
+        await AddNotificationTimeAsync(TimeSpan.FromDays(1));
+    }
+
+    private async void OnAddHourNotificationClicked(object? sender, EventArgs e)
+    {
+        await AddNotificationTimeAsync(TimeSpan.FromHours(1));
+    }
+
+    private async Task AddNotificationTimeAsync(TimeSpan offset)
+    {
+        if (displayStart is null)
+        {
+            await DisplayAlert("Ошибка", "Сначала выберите дату/время начала.", "OK");
+            return;
+        }
+
+        DateTime notificationTime = displayStart.Value - offset;
+        if (!notificationTimes.Contains(notificationTime))
+        {
+            notificationTimes.Add(notificationTime);
+        }
+
+        RefreshNotificationTimes();
+    }
+
+    private void RefreshNotificationTimes()
+    {
+        notificationTimeDisplays.Clear();
+        foreach (DateTime notificationTime in notificationTimes.Order())
+        {
+            notificationTimeDisplays.Add(ReminderDisplayFormatter.FormatNotificationTime(notificationTime));
+        }
+    }
+
     private void UpdateDisplayPeriodLabel()
     {
-        DisplayPeriodLabel.Text = ReminderDisplayFormatter.GetEditorDisplayText(displayStart, displayEnd);
+        DisplayPeriodLabel.Text = ReminderDisplayFormatter.GetDisplayText(displayStart, displayEnd);
     }
 }
