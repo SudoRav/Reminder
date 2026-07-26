@@ -7,6 +7,11 @@ public sealed class ReminderNotificationService : IReminderNotificationService
         return Task.CompletedTask;
     }
 
+    public Task ScheduleAsync(ReminderItem reminder)
+    {
+        return Task.CompletedTask;
+    }
+
     public void Cancel(int reminderId)
     {
     }

@@ -30,14 +30,7 @@ public partial class MainPage : ContentPage
 
         foreach (ReminderItem reminder in reminders)
         {
-            if (ReminderDisplayFormatter.ShouldDisplayNow(reminder, DateTime.Now))
-            {
-                await notificationService.ShowAsync(reminder);
-            }
-            else
-            {
-                notificationService.Cancel(reminder.Id);
-            }
+            await ShowOrCancelNotificationAsync(reminder);
         }
     }
 
@@ -86,6 +79,7 @@ public partial class MainPage : ContentPage
         var editorPage = new ReminderEditorPage(reminder);
         editorPage.SaveRequested += async (_, editedReminder) =>
         {
+            notificationService.Cancel(reminder.Id);
             reminder.Text = editedReminder.Text;
             reminder.DisplayStart = editedReminder.DisplayStart;
             reminder.DisplayEnd = editedReminder.DisplayEnd;
@@ -112,23 +106,25 @@ public partial class MainPage : ContentPage
             reminders.Remove(reminder);
         }
 
+        notificationService.Cancel(reminderId);
+
         if (saveReminders)
         {
             SaveReminders();
         }
-
-        notificationService.Cancel(reminderId);
     }
 
     private async Task ShowOrCancelNotificationAsync(ReminderItem reminder)
     {
+        notificationService.Cancel(reminder.Id);
+
         if (ReminderDisplayFormatter.ShouldDisplayNow(reminder, DateTime.Now))
         {
             await notificationService.ShowAsync(reminder);
         }
         else
         {
-            notificationService.Cancel(reminder.Id);
+            await notificationService.ScheduleAsync(reminder);
         }
     }
 
@@ -158,6 +154,18 @@ public partial class MainPage : ContentPage
         AndroidReminderNotificationService.ReminderCompleted += reminderId =>
         {
             MainThread.BeginInvokeOnMainThread(() => CompleteReminder(reminderId, saveReminders: false));
+        };
+        AndroidReminderNotificationService.ReminderEditorRequested += reminderId =>
+        {
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                ReloadReminders();
+                ReminderItem? reminder = reminders.FirstOrDefault(item => item.Id == reminderId);
+                if (reminder is not null)
+                {
+                    await OpenEditorAsync(reminder);
+                }
+            });
         };
 #endif
     }
