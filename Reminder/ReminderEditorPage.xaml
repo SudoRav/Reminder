@@ -11,7 +11,7 @@
         <ScrollView Grid.Row="0">
             <VerticalStackLayout Spacing="12">
                 <Editor x:Name="ReminderTextEditor"
-                        MinimumHeightRequest="230"
+                        MinimumHeightRequest="253"
                         AutoSize="TextChanges"
                         Placeholder="Введите текст напоминания"
                         SemanticProperties.Hint="Введите текст напоминания" />
@@ -42,7 +42,6 @@
             Grid.Column="0"
             GroupName="NotificationTarget"
             Content="Начало"
-            IsChecked="True"
             CheckedChanged="OnNotificationTargetChanged"
             HorizontalOptions="Fill"
             VerticalOptions="Fill" />

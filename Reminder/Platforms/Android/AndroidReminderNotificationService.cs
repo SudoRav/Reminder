@@ -44,6 +44,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
     public async Task ShowAsync(ReminderItem reminder)
     {
+        await EnsureOverlayPermissionAsync();
         ScheduleOverlayAlarms(reminder);
 
         if (!await EnsureNotificationPermissionAsync())
@@ -75,10 +76,10 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         notificationManager.Notify(reminder.Id, notification);
     }
 
-    public Task ScheduleAsync(ReminderItem reminder)
+    public async Task ScheduleAsync(ReminderItem reminder)
     {
+        await EnsureOverlayPermissionAsync();
         ScheduleOverlayAlarms(reminder);
-        return Task.CompletedTask;
     }
 
     public void Cancel(int reminderId)
@@ -174,11 +175,9 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
     internal static void ShowOverlay(Context context, ReminderItem reminder)
     {
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.M && !Settings.CanDrawOverlays(context))
+        if (!CanDrawOverlay(context))
         {
-            Intent settingsIntent = new(Settings.ActionManageOverlayPermission, Android.Net.Uri.Parse($"package:{context.PackageName}"));
-            settingsIntent.SetFlags(ActivityFlags.NewTask);
-            context.StartActivity(settingsIntent);
+            ShowPermissionRequiredNotification(context, reminder);
             return;
         }
 
@@ -194,6 +193,45 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         context.StopService(serviceIntent);
     }
 
+    private static bool CanDrawOverlay(Context context) =>
+        Build.VERSION.SdkInt < BuildVersionCodes.M || Settings.CanDrawOverlays(context);
+
+    private static Task EnsureOverlayPermissionAsync()
+    {
+        if (CanDrawOverlay(Platform.AppContext))
+        {
+            return Task.CompletedTask;
+        }
+
+        Intent settingsIntent = new(Settings.ActionManageOverlayPermission, Android.Net.Uri.Parse($"package:{Platform.AppContext.PackageName}"));
+        settingsIntent.SetFlags(ActivityFlags.NewTask);
+        Platform.AppContext.StartActivity(settingsIntent);
+        return Task.CompletedTask;
+    }
+
+    internal static void ShowPermissionRequiredNotification(Context context, ReminderItem reminder)
+    {
+        PendingIntentFlags flags = PendingIntentFlags.UpdateCurrent;
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
+        {
+            flags |= PendingIntentFlags.Immutable;
+        }
+
+        Intent settingsIntent = new(Settings.ActionManageOverlayPermission, Android.Net.Uri.Parse($"package:{context.PackageName}"));
+        PendingIntent? settingsPendingIntent = PendingIntent.GetActivity(context, reminder.Id, settingsIntent, flags);
+        Notification notification = new NotificationCompat.Builder(context, ChannelId)
+            .SetSmallIcon(Resource.Drawable.notification_icon)
+            .SetContentTitle("Разрешите показ поверх окон")
+            .SetContentText(reminder.Text)
+            .SetStyle(new NotificationCompat.BigTextStyle().BigText(reminder.Text))
+            .SetContentIntent(settingsPendingIntent)
+            .SetAutoCancel(true)
+            .SetPriority(NotificationCompat.PriorityHigh)
+            .Build();
+
+        ((NotificationManager)context.GetSystemService(Context.NotificationService)!).Notify(20_000 + reminder.Id, notification);
+    }
+
     private void CreateNotificationChannel()
     {
         if (Build.VERSION.SdkInt < BuildVersionCodes.O) return;
@@ -202,6 +240,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             Description = "Липкие уведомления для сохранённых напоминаний",
         };
         channel.SetShowBadge(true);
+        channel.EnableVibration(true);
         notificationManager.CreateNotificationChannel(channel);
     }
 
@@ -282,44 +321,110 @@ public sealed class ReminderOverlayService : Service
     private void AddOverlay(ReminderItem reminder)
     {
         RemoveOverlay();
+
         windowManager = GetSystemService(WindowService).JavaCast<IWindowManager>();
 
-        var container = new LinearLayout(this)
-        {
-            Orientation = Orientation.Vertical,
-        };
-        container.SetPadding(36, 28, 36, 28);
-        container.SetBackgroundColor(Android.Graphics.Color.White);
+        var metrics = Resources.DisplayMetrics;
 
-        var textView = new TextView(this)
+        int screenWidth = metrics.WidthPixels;
+        int screenHeight = metrics.HeightPixels;
+
+        // Размер окна
+        int overlayWidth = (int)(screenWidth * 0.8f);
+        int overlayHeight = (int)(screenHeight * 0.25f);
+
+        // Контейнер
+        var container = new Android.Widget.LinearLayout(this)
+        {
+            Orientation = Orientation.Vertical
+        };
+
+        container.SetBackgroundColor(Android.Graphics.Color.White);
+        container.SetPadding(40, 40, 40, 40);
+
+        // Текст
+        var textView = new Android.Widget.TextView(this)
         {
             Text = reminder.Text,
-            TextSize = 18,
+            TextSize = 18
         };
-        textView.SetTextColor(Android.Graphics.Color.Black);
-        container.AddView(textView);
 
-        var button = new Android.Widget.Button(this) { Text = "Завершить" };
+        textView.SetTextColor(Android.Graphics.Color.Black);
+
+        // Прокрутка текста
+        var scrollView = new Android.Widget.ScrollView(this);
+
+        scrollView.AddView(textView);
+
+        var scrollParams = new Android.Widget.LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MatchParent,
+            0,
+            1f);
+
+        container.AddView(scrollView, scrollParams);
+
+        // Кнопка
+        var button = new Android.Widget.Button(this)
+        {
+            Text = "Завершить"
+        };
+
         button.Click += (_, _) =>
         {
-            SendBroadcast(new Android.Content.Intent(this, typeof(CompleteReminderReceiver))
-                .SetAction(AndroidReminderNotificationService.CompleteAction)
-                .PutExtra(AndroidReminderNotificationService.ReminderIdExtra, reminder.Id));
+            SendBroadcast(
+                new Android.Content.Intent(this, typeof(CompleteReminderReceiver))
+                    .SetAction(AndroidReminderNotificationService.CompleteAction)
+                    .PutExtra(AndroidReminderNotificationService.ReminderIdExtra, reminder.Id));
+
             RemoveOverlay();
             StopSelf();
         };
-        container.AddView(button);
 
-        container.Click += (_, _) => StartActivity(AndroidReminderNotificationService.CreateOpenEditorIntent(reminder.Id));
+        var buttonParams = new Android.Widget.LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MatchParent,
+            ViewGroup.LayoutParams.WrapContent);
 
-        WindowManagerTypes type = Build.VERSION.SdkInt >= BuildVersionCodes.O ? WindowManagerTypes.ApplicationOverlay : WindowManagerTypes.Phone;
-        layoutParams = new WindowManagerLayoutParams(WindowManagerLayoutParams.WrapContent, WindowManagerLayoutParams.WrapContent, type,
-            WindowManagerFlags.NotFocusable | WindowManagerFlags.KeepScreenOn, Format.Translucent)
+        buttonParams.TopMargin = 24;
+
+        container.AddView(button, buttonParams);
+
+        container.Click += (_, _) =>
         {
-            Gravity = GravityFlags.Center,
+            StartActivity(
+                AndroidReminderNotificationService.CreateOpenEditorIntent(reminder.Id));
         };
+
+        WindowManagerTypes type =
+            Build.VERSION.SdkInt >= BuildVersionCodes.O
+                ? WindowManagerTypes.ApplicationOverlay
+                : WindowManagerTypes.Phone;
+
+        layoutParams = new WindowManagerLayoutParams(
+            overlayWidth,
+            overlayHeight,
+            type,
+            WindowManagerFlags.NotFocusable | WindowManagerFlags.KeepScreenOn,
+            Format.Translucent)
+        {
+            Gravity = GravityFlags.Center
+        };
+
         overlayView = container;
-        windowManager?.AddView(overlayView, layoutParams);
+
+        try
+        {
+            windowManager?.AddView(overlayView, layoutParams);
+        }
+        catch (WindowManagerBadTokenException)
+        {
+            AndroidReminderNotificationService.ShowPermissionRequiredNotification(this, reminder);
+            StopSelf();
+        }
+        catch (Java.Lang.SecurityException)
+        {
+            AndroidReminderNotificationService.ShowPermissionRequiredNotification(this, reminder);
+            StopSelf();
+        }
     }
 
     private void RemoveOverlay()
