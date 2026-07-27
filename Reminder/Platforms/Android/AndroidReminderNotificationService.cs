@@ -23,6 +23,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     internal const string CompleteAction = "com.companyname.reminder.COMPLETE_REMINDER";
     internal const string OpenEditorAction = "com.companyname.reminder.OPEN_REMINDER_EDITOR";
     internal const string ReminderIdExtra = "reminder_id";
+    internal const string NotificationTimeTicksExtra = "notification_time_ticks";
 
     private readonly Context context;
     private readonly NotificationManager notificationManager;
@@ -30,9 +31,11 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
     public static event Action<int>? ReminderCompleted;
     public static event Action<int>? ReminderEditorRequested;
+    public static event Action<int, DateTime>? NotificationTimeTriggered;
 
     internal static void NotifyReminderCompleted(int reminderId) => ReminderCompleted?.Invoke(reminderId);
     internal static void NotifyReminderEditorRequested(int reminderId) => ReminderEditorRequested?.Invoke(reminderId);
+    private static void NotifyNotificationTimeTriggered(int reminderId, DateTime notificationTime) => NotificationTimeTriggered?.Invoke(reminderId, notificationTime);
 
     public AndroidReminderNotificationService()
     {
@@ -129,6 +132,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             Intent intent = new(context, typeof(OverlayReminderReceiver));
             intent.SetAction(AlarmAction);
             intent.PutExtra(ReminderIdExtra, reminder.Id);
+            intent.PutExtra(NotificationTimeTicksExtra, notificationTime.Ticks);
             int requestCode = GetOverlayRequestCode(reminder.Id, notificationTime);
             PendingIntent? pendingIntent = PendingIntent.GetBroadcast(context, requestCode, intent, GetMutableFlags());
             long triggerAtMillis = new DateTimeOffset(notificationTime).ToUnixTimeMilliseconds();
@@ -173,7 +177,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         return flags;
     }
 
-    internal static void ShowOverlay(Context context, ReminderItem reminder)
+    internal static void ShowOverlay(Context context, ReminderItem reminder, DateTime? notificationTime)
     {
         if (!CanDrawOverlay(context))
         {
@@ -181,9 +185,44 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             return;
         }
 
+        ReminderItem overlayReminder = notificationTime.HasValue
+            ? RemoveNotificationTime(reminder.Id, notificationTime.Value) ?? reminder
+            : reminder;
+
         Intent serviceIntent = new(context, typeof(ReminderOverlayService));
-        serviceIntent.PutExtra(ReminderIdExtra, reminder.Id);
+        serviceIntent.PutExtra(ReminderIdExtra, overlayReminder.Id);
         ContextCompat.StartForegroundService(context, serviceIntent);
+    }
+
+
+    private static ReminderItem? RemoveNotificationTime(int reminderId, DateTime notificationTime)
+    {
+        string json = Preferences.Default.Get("reminders", "[]");
+        List<ReminderItem> reminders;
+        try
+        {
+            reminders = JsonSerializer.Deserialize<List<ReminderItem>>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        ReminderItem? reminder = reminders.FirstOrDefault(reminder => reminder.Id == reminderId);
+        if (reminder is null)
+        {
+            return null;
+        }
+
+        int removedCount = reminder.NotificationTimes.RemoveAll(time => time == notificationTime);
+        if (removedCount == 0)
+        {
+            return reminder;
+        }
+
+        Preferences.Default.Set("reminders", JsonSerializer.Serialize(reminders, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        MainThread.BeginInvokeOnMainThread(() => NotifyNotificationTimeTriggered(reminderId, notificationTime));
+        return reminder;
     }
 
     internal static void DismissOverlay(Context context, int reminderId)
@@ -268,7 +307,9 @@ public sealed class OverlayReminderReceiver : BroadcastReceiver
         ReminderItem? reminder = AndroidReminderNotificationService.LoadReminder(reminderId);
         if (reminder is not null)
         {
-            AndroidReminderNotificationService.ShowOverlay(context, reminder);
+            long notificationTimeTicks = intent?.GetLongExtra(AndroidReminderNotificationService.NotificationTimeTicksExtra, 0L) ?? 0L;
+            DateTime? notificationTime = notificationTimeTicks == 0L ? null : new DateTime(notificationTimeTicks);
+            AndroidReminderNotificationService.ShowOverlay(context, reminder, notificationTime);
         }
     }
 }
