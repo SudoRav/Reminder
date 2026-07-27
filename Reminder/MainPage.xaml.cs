@@ -37,18 +37,27 @@ public partial class MainPage : ContentPage
     private async void OnCreateClicked(object? sender, EventArgs e)
     {
         var editorPage = new ReminderEditorPage();
+        ReminderItem? reminder = null;
         editorPage.SaveRequested += async (_, editedReminder) =>
         {
-            var reminder = new ReminderItem
+            if (reminder is null)
             {
-                Id = GetNextReminderId(),
-                Text = editedReminder.Text,
-                DisplayStart = editedReminder.DisplayStart,
-                DisplayEnd = editedReminder.DisplayEnd,
-                NotificationTimes = editedReminder.NotificationTimes,
-            };
+                reminder = new ReminderItem
+                {
+                    Id = GetNextReminderId(),
+                };
+                reminders.Add(reminder);
+            }
+            else
+            {
+                notificationService.Cancel(reminder.Id);
+            }
 
-            reminders.Add(reminder);
+            reminder.Text = editedReminder.Text;
+            reminder.DisplayStart = editedReminder.DisplayStart;
+            reminder.DisplayEnd = editedReminder.DisplayEnd;
+            reminder.NotificationTimes = editedReminder.NotificationTimes;
+            RefreshReminders();
             SaveReminders();
             await ShowOrCancelNotificationAsync(reminder);
         };

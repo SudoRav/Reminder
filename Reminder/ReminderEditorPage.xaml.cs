@@ -20,6 +20,8 @@ public partial class ReminderEditorPage : ContentPage
     private DisplayBoundary selectedBoundary;
     private bool isUpdatingPickers;
     private NotificationTimeItem? editingNotification;
+    private bool isInitializing = true;
+
 
     public event EventHandler<ReminderItem>? SaveRequested;
 
@@ -48,6 +50,7 @@ public partial class ReminderEditorPage : ContentPage
         EndRadioButton.IsChecked = true;
 
         UpdateDisplayPeriodLabel();
+        isInitializing = false;
     }
 
     private void OnStartClicked(object? sender, EventArgs e)
@@ -180,6 +183,7 @@ public partial class ReminderEditorPage : ContentPage
             NotificationTimesCollectionView.ItemsSource = notificationTimes;
 
             editingNotification = null;
+            RequestAutoSave();
             return;
         }
 
@@ -195,14 +199,24 @@ public partial class ReminderEditorPage : ContentPage
         }
 
         UpdateDisplayPeriodLabel();
+        RequestAutoSave();
     }
 
-    private async void OnSaveClicked(object? sender, EventArgs e)
+    private void OnReminderChanged(object? sender, TextChangedEventArgs e)
     {
+        RequestAutoSave();
+    }
+
+    private void RequestAutoSave()
+    {
+        if (isInitializing)
+        {
+            return;
+        }
+
         string text = ReminderTextEditor.Text?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(text))
         {
-            await DisplayAlert("Ошибка", "Введите текст напоминания.", "OK");
             return;
         }
 
@@ -213,11 +227,10 @@ public partial class ReminderEditorPage : ContentPage
             DisplayStart = displayStart,
             DisplayEnd = displayEnd,
             NotificationTimes = notificationTimes
-    .Select(x => x.Time)
-    .Order()
-    .ToList(),
+                .Select(x => x.Time)
+                .Order()
+                .ToList(),
         });
-        await Navigation.PopModalAsync();
     }
 
     private async void OnDeleteClicked(object? sender, EventArgs e)
@@ -280,6 +293,7 @@ public partial class ReminderEditorPage : ContentPage
         {
             notificationTimes.Add(new NotificationTimeItem(notificationTime));
             SortNotifications();
+            RequestAutoSave();
         }
     }
 
@@ -289,6 +303,7 @@ public partial class ReminderEditorPage : ContentPage
             button.CommandParameter is NotificationTimeItem item)
         {
             notificationTimes.Remove(item);
+            RequestAutoSave();
         }
     }
 
