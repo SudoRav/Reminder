@@ -329,20 +329,59 @@ public sealed class ReminderOverlayService : Service
         int screenWidth = metrics.WidthPixels;
         int screenHeight = metrics.HeightPixels;
 
-        // Размер окна
+        // Размер карточки внутри полноэкранного прозрачного слоя.
         int overlayWidth = (int)(screenWidth * 0.8f);
         int overlayHeight = (int)(screenHeight * 0.25f);
 
-        // Контейнер
-        var container = new Android.Widget.LinearLayout(this)
+        var root = new Android.Widget.FrameLayout(this);
+        root.SetBackgroundColor(Android.Graphics.Color.Transparent);
+        root.Clickable = true;
+        root.Click += (_, _) =>
         {
-            Orientation = Orientation.Vertical
+            RemoveOverlay();
+            StopSelf();
         };
 
-        container.SetBackgroundColor(Android.Graphics.Color.White);
-        container.SetPadding(40, 40, 40, 40);
+        var card = new Android.Widget.LinearLayout(this)
+        {
+            Orientation = Orientation.Vertical,
+            Clickable = true
+        };
 
-        // Текст
+        card.SetBackgroundColor(Android.Graphics.Color.White);
+        card.SetPadding(40, 24, 40, 40);
+
+        var header = new Android.Widget.LinearLayout(this)
+        {
+            Orientation = Orientation.Horizontal
+        };
+
+        var title = new Android.Widget.TextView(this)
+        {
+            Text = "Напоминание",
+            TextSize = 16
+        };
+        title.SetTextColor(Android.Graphics.Color.Black);
+
+        header.AddView(title, new Android.Widget.LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1f));
+
+        var closeButton = new Android.Widget.TextView(this)
+        {
+            Text = "✕",
+            TextSize = 24,
+            Gravity = GravityFlags.Center
+        };
+        closeButton.SetTextColor(Android.Graphics.Color.Black);
+        closeButton.SetPadding(24, 0, 0, 0);
+        closeButton.Click += (_, _) =>
+        {
+            RemoveOverlay();
+            StopSelf();
+        };
+
+        header.AddView(closeButton, new Android.Widget.LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent));
+        card.AddView(header, new Android.Widget.LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent));
+
         var textView = new Android.Widget.TextView(this)
         {
             Text = reminder.Text,
@@ -351,9 +390,7 @@ public sealed class ReminderOverlayService : Service
 
         textView.SetTextColor(Android.Graphics.Color.Black);
 
-        // Прокрутка текста
         var scrollView = new Android.Widget.ScrollView(this);
-
         scrollView.AddView(textView);
 
         var scrollParams = new Android.Widget.LinearLayout.LayoutParams(
@@ -361,9 +398,8 @@ public sealed class ReminderOverlayService : Service
             0,
             1f);
 
-        container.AddView(scrollView, scrollParams);
+        card.AddView(scrollView, scrollParams);
 
-        // Кнопка
         var button = new Android.Widget.Button(this)
         {
             Text = "Завершить"
@@ -382,17 +418,25 @@ public sealed class ReminderOverlayService : Service
 
         var buttonParams = new Android.Widget.LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MatchParent,
-            ViewGroup.LayoutParams.WrapContent);
-
-        buttonParams.TopMargin = 24;
-
-        container.AddView(button, buttonParams);
-
-        container.Click += (_, _) =>
+            ViewGroup.LayoutParams.WrapContent)
         {
-            StartActivity(
-                AndroidReminderNotificationService.CreateOpenEditorIntent(reminder.Id));
+            TopMargin = 24
         };
+
+        card.AddView(button, buttonParams);
+
+        card.Click += (_, _) =>
+        {
+            StartActivity(AndroidReminderNotificationService.CreateOpenEditorIntent(reminder.Id));
+            RemoveOverlay();
+            StopSelf();
+        };
+
+        var cardParams = new Android.Widget.FrameLayout.LayoutParams(overlayWidth, overlayHeight)
+        {
+            Gravity = GravityFlags.Center
+        };
+        root.AddView(card, cardParams);
 
         WindowManagerTypes type =
             Build.VERSION.SdkInt >= BuildVersionCodes.O
@@ -400,8 +444,8 @@ public sealed class ReminderOverlayService : Service
                 : WindowManagerTypes.Phone;
 
         layoutParams = new WindowManagerLayoutParams(
-            overlayWidth,
-            overlayHeight,
+            ViewGroup.LayoutParams.MatchParent,
+            ViewGroup.LayoutParams.MatchParent,
             type,
             WindowManagerFlags.NotFocusable | WindowManagerFlags.KeepScreenOn,
             Format.Translucent)
@@ -409,7 +453,7 @@ public sealed class ReminderOverlayService : Service
             Gravity = GravityFlags.Center
         };
 
-        overlayView = container;
+        overlayView = root;
 
         try
         {

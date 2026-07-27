@@ -14,7 +14,8 @@
                         MinimumHeightRequest="253"
                         AutoSize="TextChanges"
                         Placeholder="Введите текст напоминания"
-                        SemanticProperties.Hint="Введите текст напоминания" />
+                        SemanticProperties.Hint="Введите текст напоминания"
+                        TextChanged="OnReminderChanged" />
 
                 <Label x:Name="DisplayPeriodLabel"
                        FontAttributes="Bold"
@@ -113,19 +114,13 @@
             </VerticalStackLayout>
         </ScrollView>
 
-        <Grid x:Name="EditorActionButtons"
-              Grid.Row="1"
-              ColumnDefinitions="*,*"
-              ColumnSpacing="12">
-            <Button x:Name="DeleteButton"
-                    Text="Завершить"
-                    BackgroundColor="#B00020"
-                    TextColor="White"
-                    Clicked="OnDeleteClicked" />
-            <Button Grid.Column="1"
-                    Text="Сохранить"
-                    Clicked="OnSaveClicked" />
-        </Grid>
+        <Button x:Name="DeleteButton"
+                Grid.Row="1"
+                Text="Завершить"
+                BackgroundColor="#B00020"
+                TextColor="White"
+                Clicked="OnDeleteClicked"
+                VerticalOptions="End" />
 
         <Grid x:Name="DateTimePickerOverlay"
               Grid.RowSpan="2"
