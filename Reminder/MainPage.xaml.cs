@@ -176,7 +176,26 @@ public partial class MainPage : ContentPage
                 }
             });
         };
+        AndroidReminderNotificationService.NotificationTimeTriggered += (reminderId, notificationTime) =>
+        {
+            MainThread.BeginInvokeOnMainThread(() => RemoveTriggeredNotificationTime(reminderId, notificationTime));
+        };
 #endif
+    }
+
+    private void RemoveTriggeredNotificationTime(int reminderId, DateTime notificationTime)
+    {
+        ReminderItem? reminder = reminders.FirstOrDefault(item => item.Id == reminderId);
+        if (reminder is null)
+        {
+            ReloadReminders();
+            return;
+        }
+
+        if (reminder.NotificationTimes.RemoveAll(time => time == notificationTime) > 0)
+        {
+            RefreshReminders();
+        }
     }
 
     private void SaveReminders()
