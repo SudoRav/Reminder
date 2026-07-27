@@ -336,11 +336,11 @@ public sealed class ReminderOverlayService : Service
         var root = new Android.Widget.FrameLayout(this);
         root.SetBackgroundColor(Android.Graphics.Color.Transparent);
         root.Clickable = true;
-        root.Click += (_, _) =>
-        {
-            RemoveOverlay();
-            StopSelf();
-        };
+        //root.Click += (_, _) =>
+        //{
+        //    RemoveOverlay();
+        //    StopSelf();
+        //};
 
         var card = new Android.Widget.LinearLayout(this)
         {

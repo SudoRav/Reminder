@@ -57,6 +57,9 @@ public partial class ReminderEditorPage : ContentPage
     {
         selectedBoundary = DisplayBoundary.Start;
         ShowDateTimePicker(displayStart, TimeSpan.Zero);
+
+        StartRadioButton.IsChecked = true;
+        EndRadioButton.IsChecked = false;
     }
 
     private void OnEndClicked(object? sender, EventArgs e)
@@ -66,6 +69,9 @@ public partial class ReminderEditorPage : ContentPage
         ShowDateTimePicker(
             displayEnd ?? DateTime.Today.AddDays(1).AddHours(23).AddMinutes(59),
             new TimeSpan(23, 59, 0));
+
+        StartRadioButton.IsChecked = false;
+        EndRadioButton.IsChecked = true;
     }
 
     private void ShowDateTimePicker(DateTime? dateTime, TimeSpan defaultTime)
