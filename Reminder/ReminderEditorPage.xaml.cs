@@ -44,8 +44,8 @@ public partial class ReminderEditorPage : ContentPage
 
         DeleteButton.IsVisible = reminder is not null;
 
-        StartRadioButton.IsChecked = true;
-        EndRadioButton.IsChecked = false;
+        StartRadioButton.IsChecked = false;
+        EndRadioButton.IsChecked = true;
 
         UpdateDisplayPeriodLabel();
     }
