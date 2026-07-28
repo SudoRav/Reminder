@@ -21,7 +21,7 @@ public partial class ReminderEditorPage : ContentPage
     private bool isUpdatingPickers;
     private NotificationTimeItem? editingNotification;
     private bool isInitializing = true;
-
+    private CancellationTokenSource? autoSaveCancellation;
 
     public event EventHandler<ReminderItem>? SaveRequested;
 
@@ -213,7 +213,7 @@ public partial class ReminderEditorPage : ContentPage
         RequestAutoSave();
     }
 
-    private void RequestAutoSave()
+    private void RequestSave()
     {
         if (isInitializing)
         {
@@ -239,14 +239,63 @@ public partial class ReminderEditorPage : ContentPage
         });
     }
 
-    private async void OnDeleteClicked(object? sender, EventArgs e)
+    private void RequestAutoSave()
     {
-        if (reminder is null)
+        if (isInitializing)
+            return;
+
+        autoSaveCancellation?.Cancel();
+
+        autoSaveCancellation = new CancellationTokenSource();
+
+        _ = RequestAutoSaveAsync(autoSaveCancellation.Token);
+    }
+
+    private async Task RequestAutoSaveAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(700, token);
+        }
+        catch (TaskCanceledException)
         {
             return;
         }
 
+        if (token.IsCancellationRequested)
+            return;
+
+        string text = ReminderTextEditor.Text?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            SaveRequested?.Invoke(this, new ReminderItem
+            {
+                Id = reminder?.Id ?? 0,
+                Text = text,
+                DisplayStart = displayStart,
+                DisplayEnd = displayEnd,
+                NotificationTimes = notificationTimes
+                    .Select(x => x.Time)
+                    .Order()
+                    .ToList()
+            });
+        });
+    }
+
+    private bool isDeleting;
+    private async void OnDeleteClicked(object? sender, EventArgs e)
+    {
+        if (reminder is null)
+            return;
+
+        isDeleting = true;
+
         DeleteRequested?.Invoke(this, EventArgs.Empty);
+
         await Navigation.PopModalAsync();
     }
 
@@ -340,5 +389,17 @@ public partial class ReminderEditorPage : ContentPage
     private void UpdateDisplayPeriodLabel()
     {
         DisplayPeriodLabel.Text = ReminderDisplayFormatter.GetDisplayText(displayStart, displayEnd);
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+
+        autoSaveCancellation?.Cancel();
+
+        if (!isDeleting)
+        {
+            RequestSave();
+        }
     }
 }
