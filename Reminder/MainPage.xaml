@@ -4,7 +4,7 @@
              xmlns:local="clr-namespace:Reminder"
              x:Class="Reminder.MainPage"
              Title="Напоминания">
-    <Grid Padding="16" RowDefinitions="Auto,*,Auto" RowSpacing="0">
+    <Grid Padding="24, 0, 24, 0" RowDefinitions="Auto,*,Auto" RowSpacing="0">
 
         <CollectionView x:Name="RemindersCollectionView"
                         Grid.Row="1"
@@ -33,9 +33,13 @@
             </CollectionView.ItemTemplate>
         </CollectionView>
 
-        <Button Grid.Row="2"
+        <!--<Button Grid.Row="2"
                 Text="Создать"
                 Clicked="OnCreateClicked"
-                HorizontalOptions="Fill" />
+                HorizontalOptions="Fill" />-->
+
+        <Button Grid.Row="2"
+                Text="Создать"
+                Clicked="OnCreateClicked"/>
     </Grid>
 </ContentPage>

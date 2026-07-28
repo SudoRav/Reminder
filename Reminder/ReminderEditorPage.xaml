@@ -5,7 +5,7 @@
              x:Class="Reminder.ReminderEditorPage"
              Title="Напоминание">
     <Grid x:Name="EditorRootGrid"
-          Padding="16"
+          Padding="24, -10, 24, 0"
           RowDefinitions="*,Auto"
           RowSpacing="0">
         <ScrollView Grid.Row="0">
@@ -78,8 +78,7 @@
                 </Grid>
 
                 <CollectionView x:Name="NotificationTimesCollectionView"
-                EmptyView="Оповещения не добавлены"
-                MaximumHeightRequest="180">
+                EmptyView="Оповещения не добавлены">
 
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
