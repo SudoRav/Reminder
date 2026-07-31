@@ -274,10 +274,16 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     private void CreateNotificationChannel()
     {
         if (Build.VERSION.SdkInt < BuildVersionCodes.O) return;
-        var channel = new NotificationChannel(ChannelId, "Постоянные напоминания", NotificationImportance.Default)
+        var channel = new NotificationChannel(
+            ChannelId,
+            "Постоянные напоминания",
+            NotificationImportance.High)
         {
-            Description = "Липкие уведомления для сохранённых напоминаний",
+            Description = "Липкие уведомления"
         };
+
+        channel.EnableVibration(true);
+        channel.SetVibrationPattern(new long[] { 0, 300, 150, 300 });
         channel.SetShowBadge(true);
         channel.EnableVibration(true);
         notificationManager.CreateNotificationChannel(channel);
@@ -361,6 +367,8 @@ public sealed class ReminderOverlayService : Service
 
     private void AddOverlay(ReminderItem reminder)
     {
+        TriggerAlert(reminder);
+
         RemoveOverlay();
 
         windowManager = GetSystemService(WindowService).JavaCast<IWindowManager>();
@@ -510,6 +518,46 @@ public sealed class ReminderOverlayService : Service
             AndroidReminderNotificationService.ShowPermissionRequiredNotification(this, reminder);
             StopSelf();
         }
+    }
+
+    private void TriggerAlert(ReminderItem reminder)
+    {
+        const string channelId = "persistent_reminders";
+
+        PendingIntentFlags flags = PendingIntentFlags.UpdateCurrent;
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
+            flags |= PendingIntentFlags.Immutable;
+
+        PendingIntent? pendingIntent = PendingIntent.GetActivity(
+            this,
+            reminder.Id,
+            AndroidReminderNotificationService.CreateOpenEditorIntent(reminder.Id),
+            flags);
+
+        Notification notification = new NotificationCompat.Builder(this, channelId)
+            .SetSmallIcon(Resource.Drawable.notification_icon)
+            .SetContentTitle("Напоминание")
+            .SetContentText(reminder.Text)
+            .SetStyle(new NotificationCompat.BigTextStyle().BigText(reminder.Text))
+            .SetPriority(NotificationCompat.PriorityHigh)
+            .SetCategory(NotificationCompat.CategoryReminder)
+            .SetAutoCancel(true)
+            .SetDefaults((int)NotificationDefaults.Sound | (int)NotificationDefaults.Vibrate)
+            .SetContentIntent(pendingIntent)
+            .Build();
+
+        NotificationManagerCompat manager = NotificationManagerCompat.From(this);
+
+        int notificationId = 900000 + reminder.Id;
+
+        manager.Notify(notificationId, notification);
+
+        // Удаляем уведомление через секунду, чтобы осталось только окно Overlay.
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            await Task.Delay(1000);
+            manager.Cancel(notificationId);
+        });
     }
 
     private void RemoveOverlay()

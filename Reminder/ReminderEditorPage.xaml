@@ -42,7 +42,7 @@
             x:Name="StartRadioButton"
             Grid.Column="0"
             GroupName="NotificationTarget"
-            Content="Начало"
+            Content="»Начало"
             CheckedChanged="OnNotificationTargetChanged"
             HorizontalOptions="Fill"
             VerticalOptions="Fill" />
@@ -57,7 +57,7 @@
             x:Name="EndRadioButton"
             Grid.Column="1"
             GroupName="NotificationTarget"
-            Content="Конец"
+            Content="«Конец"
             CheckedChanged="OnNotificationTargetChanged"
             HorizontalOptions="Fill"
             VerticalOptions="Fill" />
@@ -83,11 +83,11 @@
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
                             <Border Margin="0,0,0,8"
-            Padding="30,0"
+            Padding="10,0"
             StrokeShape="RoundRectangle 8"
             BackgroundColor="{AppThemeBinding Light=#EEF4FF, Dark=#1F2A36}">
 
-                                <Grid ColumnDefinitions="*,Auto">
+                                <Grid ColumnDefinitions="*,Auto,40,40,40">
 
                                     <Label Text="{Binding DisplayText}"
                    VerticalOptions="Center">
@@ -101,10 +101,15 @@
                                     </Label>
 
                                     <Button Grid.Column="1"
-                    Text="Удалить"
-                    CommandParameter="{Binding .}"
-                    Clicked="OnDeleteNotificationClicked"/>
+        Text="✖"
+        CommandParameter="{Binding .}"
+        HeightRequest="30"
+        WidthRequest="30"
+        Clicked="OnDeleteNotificationClicked"/>
 
+                                    <CheckBox Grid.Column="2"/>
+                                    <CheckBox Grid.Column="3"/>
+                                    <CheckBox Grid.Column="4"/>
                                 </Grid>
                             </Border>
                         </DataTemplate>
@@ -113,13 +118,12 @@
             </VerticalStackLayout>
         </ScrollView>
 
-        <Button x:Name="DeleteButton"
-                Grid.Row="1"
+        <Button x:Name="DeleteButton"  WidthRequest="180" HeightRequest="40" HorizontalOptions="Start" VerticalOptions="End" Margin="24"
+                Grid.Row="0"
                 Text="Завершить"
                 BackgroundColor="#B00020"
                 TextColor="White"
-                Clicked="OnDeleteClicked"
-                VerticalOptions="End" />
+                Clicked="OnDeleteClicked"/>
 
         <Grid x:Name="DateTimePickerOverlay"
               Grid.RowSpan="2"

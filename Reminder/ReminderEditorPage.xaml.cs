@@ -23,6 +23,9 @@ public partial class ReminderEditorPage : ContentPage
     private bool isInitializing = true;
     private CancellationTokenSource? autoSaveCancellation;
 
+    //автосохранение
+    private bool isAutoSaveEnabled = false; // или true - по умолчанию
+
     public event EventHandler<ReminderItem>? SaveRequested;
 
     public event EventHandler? DeleteRequested;
@@ -67,8 +70,8 @@ public partial class ReminderEditorPage : ContentPage
         selectedBoundary = DisplayBoundary.End;
 
         ShowDateTimePicker(
-            displayEnd ?? DateTime.Today.AddDays(1).AddHours(23).AddMinutes(59),
-            new TimeSpan(23, 59, 0));
+            displayEnd ?? DateTime.Today.AddDays(1).AddHours(23).AddMinutes(0),
+            new TimeSpan(23, 0, 0));
 
         StartRadioButton.IsChecked = false;
         EndRadioButton.IsChecked = true;
@@ -87,7 +90,7 @@ public partial class ReminderEditorPage : ContentPage
         else if (selectedBoundary == DisplayBoundary.End)
         {
             initialDate = DateTime.Today.AddDays(1);
-            initialTime = new TimeSpan(23, 59, 0);
+            initialTime = new TimeSpan(23, 0, 0);
         }
         else
         {
@@ -241,13 +244,11 @@ public partial class ReminderEditorPage : ContentPage
 
     private void RequestAutoSave()
     {
-        if (isInitializing)
+        if (!isAutoSaveEnabled || isInitializing)
             return;
 
         autoSaveCancellation?.Cancel();
-
         autoSaveCancellation = new CancellationTokenSource();
-
         _ = RequestAutoSaveAsync(autoSaveCancellation.Token);
     }
 

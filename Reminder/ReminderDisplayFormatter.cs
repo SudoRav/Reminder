@@ -55,7 +55,7 @@ public static class ReminderDisplayFormatter
 
     private static string FormatEnd(DateTime value)
     {
-        return FormatDateTime(value, new TimeSpan(23, 59, 0));
+        return FormatDateTime(value, new TimeSpan(23, 0, 0));
     }
 
     private static readonly string[] Months =
