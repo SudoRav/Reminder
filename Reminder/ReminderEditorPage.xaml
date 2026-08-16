@@ -100,7 +100,7 @@
 
                                     </Label>
 
-                                    <Button Grid.Column="1"
+                                    <Button Grid.Column="1" 
         Text="✖"
         CommandParameter="{Binding .}" 
         HeightRequest="30"
