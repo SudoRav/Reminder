@@ -8,6 +8,8 @@ public partial class MainPage : ContentPage
     private readonly ObservableCollection<ReminderItem> reminders;
     private readonly ReminderStore store;
     private readonly IReminderNotificationService notificationService;
+    private readonly SemaphoreSlim editorNavigationSemaphore = new(1, 1);
+    private int? openEditorReminderId;
 
     public MainPage()
     {
@@ -27,6 +29,7 @@ public partial class MainPage : ContentPage
         base.OnAppearing();
 
         ReloadReminders();
+        DismissVisibleNotifications();
 
         foreach (ReminderItem reminder in reminders)
         {
@@ -85,6 +88,21 @@ public partial class MainPage : ContentPage
 
     private async Task OpenEditorAsync(ReminderItem reminder)
     {
+        await editorNavigationSemaphore.WaitAsync();
+        try
+        {
+            if (openEditorReminderId is not null)
+            {
+                return;
+            }
+
+            openEditorReminderId = reminder.Id;
+        }
+        finally
+        {
+            editorNavigationSemaphore.Release();
+        }
+
         var editorPage = new ReminderEditorPage(reminder);
         editorPage.SaveRequested += async (_, editedReminder) =>
         {
@@ -98,8 +116,17 @@ public partial class MainPage : ContentPage
             await ShowOrCancelNotificationAsync(reminder);
         };
         editorPage.DeleteRequested += (_, _) => CompleteReminder(reminder);
+        editorPage.Disappearing += (_, _) => openEditorReminderId = null;
 
-        await Navigation.PushModalAsync(new NavigationPage(editorPage));
+        try
+        {
+            await Navigation.PushModalAsync(new NavigationPage(editorPage));
+        }
+        catch
+        {
+            openEditorReminderId = null;
+            throw;
+        }
     }
 
     private void CompleteReminder(ReminderItem reminder)
@@ -195,6 +222,14 @@ public partial class MainPage : ContentPage
         if (reminder.NotificationTimes.RemoveAll(time => time == notificationTime) > 0)
         {
             RefreshReminders();
+        }
+    }
+
+    private void DismissVisibleNotifications()
+    {
+        foreach (ReminderItem reminder in reminders)
+        {
+            notificationService.Cancel(reminder.Id);
         }
     }
 

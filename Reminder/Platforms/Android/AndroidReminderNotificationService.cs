@@ -26,6 +26,9 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     internal const string OpenEditorAction = "com.companyname.reminder.OPEN_REMINDER_EDITOR";
     internal const string ReminderIdExtra = "reminder_id";
     internal const string NotificationTimeTicksExtra = "notification_time_ticks";
+    internal const int AlarmNotificationIdOffset = 900_000;
+    internal const int OverlayForegroundNotificationIdOffset = 10_000;
+    internal const int PermissionNotificationIdOffset = 20_000;
 
     private readonly Context context;
     private readonly NotificationManager notificationManager;
@@ -91,7 +94,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
     public void Cancel(int reminderId)
     {
-        notificationManager.Cancel(reminderId);
+        CancelVisibleNotifications(context, reminderId);
         CancelNotificationTimeAlarms(reminderId);
         DismissOverlay(context, reminderId);
     }
@@ -267,8 +270,19 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         return reminder;
     }
 
+
+    internal static void CancelVisibleNotifications(Context context, int reminderId)
+    {
+        NotificationManager notificationManager = (NotificationManager)context.GetSystemService(Context.NotificationService)!;
+        notificationManager.Cancel(reminderId);
+        notificationManager.Cancel(AlarmNotificationIdOffset + reminderId);
+        notificationManager.Cancel(OverlayForegroundNotificationIdOffset + reminderId);
+        notificationManager.Cancel(PermissionNotificationIdOffset + reminderId);
+    }
+
     internal static void DismissOverlay(Context context, int reminderId)
     {
+        CancelVisibleNotifications(context, reminderId);
         Intent serviceIntent = new(context, typeof(ReminderOverlayService));
         serviceIntent.PutExtra(ReminderIdExtra, reminderId);
         context.StopService(serviceIntent);
@@ -310,7 +324,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             .SetPriority(NotificationCompat.PriorityHigh)
             .Build();
 
-        ((NotificationManager)context.GetSystemService(Context.NotificationService)!).Notify(20_000 + reminder.Id, notification);
+        ((NotificationManager)context.GetSystemService(Context.NotificationService)!).Notify(PermissionNotificationIdOffset + reminder.Id, notification);
     }
 
     private void CreateNotificationChannel()
@@ -420,7 +434,7 @@ public sealed class ReminderOverlayService : Service
             return StartCommandResult.NotSticky;
         }
 
-        StartForeground(10_000 + reminder.Id, BuildForegroundNotification(reminder));
+        StartForeground(AndroidReminderNotificationService.OverlayForegroundNotificationIdOffset + reminder.Id, BuildForegroundNotification(reminder));
         AddOverlay(reminder);
         return StartCommandResult.NotSticky;
     }
@@ -632,9 +646,7 @@ public sealed class ReminderOverlayService : Service
             return;
         }
 
-        int notificationId = 900000 + reminder.Id;
-
-        manager.Notify(notificationId, notification);
+        manager.Notify(AndroidReminderNotificationService.AlarmNotificationIdOffset + reminder.Id, notification);
     }
 
     private void StartAlarmSignal()
@@ -733,7 +745,7 @@ public sealed class CompleteReminderReceiver : BroadcastReceiver
 
         reminders.RemoveAll(reminder => reminder.Id == reminderId);
         Preferences.Default.Set("reminders", JsonSerializer.Serialize(reminders, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
-        ((NotificationManager)context.GetSystemService(Context.NotificationService)!).Cancel(reminderId);
+        AndroidReminderNotificationService.CancelVisibleNotifications(context, reminderId);
         AndroidReminderNotificationService.DismissOverlay(context, reminderId);
         MainThread.BeginInvokeOnMainThread(() => AndroidReminderNotificationService.NotifyReminderCompleted(reminderId));
     }
