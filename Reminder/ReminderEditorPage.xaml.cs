@@ -54,10 +54,14 @@ public partial class ReminderEditorPage : ContentPage
 
         UpdateDisplayPeriodLabel();
         isInitializing = false;
+
+        //DisplayPeriodLabel.IsVisible = false;
     }
 
     private void OnStartClicked(object? sender, EventArgs e)
     {
+        DisplayPeriodLabel.IsVisible = true;
+
         selectedBoundary = DisplayBoundary.Start;
         ShowDateTimePicker(displayStart, TimeSpan.Zero);
 
@@ -67,6 +71,8 @@ public partial class ReminderEditorPage : ContentPage
 
     private void OnEndClicked(object? sender, EventArgs e)
     {
+        DisplayPeriodLabel.IsVisible = true;
+
         selectedBoundary = DisplayBoundary.End;
 
         ShowDateTimePicker(
@@ -298,6 +304,11 @@ public partial class ReminderEditorPage : ContentPage
         DeleteRequested?.Invoke(this, EventArgs.Empty);
 
         await Navigation.PopModalAsync();
+    }
+
+    private async void OnSaveClicked(object? sender, EventArgs e)
+    {
+
     }
 
     private async void OnAddWeekNotificationClicked(object? sender, EventArgs e)

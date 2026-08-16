@@ -4,9 +4,10 @@ namespace Reminder;
 
 public static class ReminderDisplayFormatter
 {
-    private static readonly CultureInfo RussianCulture = new("ru-RU"); 
+    private static readonly CultureInfo RussianCulture = new("ru-RU");
 
-    public static string GetDisplayText(DateTime? start, DateTime? end, string emptyPeriodText = "Постоянно")
+    //public static string GetDisplayText(DateTime? start, DateTime? end, string emptyPeriodText = "Постоянно")
+    public static string GetDisplayText(DateTime? start, DateTime? end, string emptyPeriodText = "")
     {
         if (start is null && end is null)
         {
@@ -23,7 +24,8 @@ public static class ReminderDisplayFormatter
             : $"По {FormatEnd(end!.Value)}";
     }
 
-    public static string GetDisplayText(ReminderItem reminder, string emptyPeriodText = "Постоянно")
+    //public static string GetDisplayText(ReminderItem reminder, string emptyPeriodText = "Постоянно")
+    public static string GetDisplayText(ReminderItem reminder, string emptyPeriodText = "")
     {
         return GetDisplayText(reminder.DisplayStart, reminder.DisplayEnd, emptyPeriodText);
     }
