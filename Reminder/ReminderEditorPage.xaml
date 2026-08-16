@@ -128,7 +128,7 @@
         <Button x:Name="SaveButton"  WidthRequest="140" HeightRequest="40" HorizontalOptions="End" VerticalOptions="End" Margin="20"
                 Grid.Row="0"
                 Text="Сохранить"
-                TextColor="White"
+                TextColor="Black"
                 Clicked="OnSaveClicked"/>
 
         <Grid x:Name="DateTimePickerOverlay"
