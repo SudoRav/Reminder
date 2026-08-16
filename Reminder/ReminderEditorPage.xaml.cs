@@ -39,11 +39,21 @@ public partial class ReminderEditorPage : ContentPage
         displayStart = reminder?.DisplayStart;
         displayEnd = reminder?.DisplayEnd;
 
+        if (reminder is not null)
+        {
+            reminder.NormalizeNotificationSettings();
+        }
+
         notificationTimes = new ObservableCollection<NotificationTimeItem>(
-    reminder?.NotificationTimes
-        .Order()
-        .Select(x => new NotificationTimeItem(x))
-    ?? Enumerable.Empty<NotificationTimeItem>());
+            reminder?.NotificationTimeSettings
+                .OrderBy(x => x.Time)
+                .Select(x => new NotificationTimeItem(x))
+            ?? Enumerable.Empty<NotificationTimeItem>());
+
+        foreach (NotificationTimeItem item in notificationTimes)
+        {
+            item.PropertyChanged += OnNotificationTimeItemChanged;
+        }
 
         NotificationTimesCollectionView.ItemsSource = notificationTimes;
 
@@ -245,6 +255,10 @@ public partial class ReminderEditorPage : ContentPage
                 .Select(x => x.Time)
                 .Order()
                 .ToList(),
+            NotificationTimeSettings = notificationTimes
+                .OrderBy(x => x.Time)
+                .Select(x => x.ToSettings())
+                .ToList(),
         });
     }
 
@@ -288,6 +302,10 @@ public partial class ReminderEditorPage : ContentPage
                 NotificationTimes = notificationTimes
                     .Select(x => x.Time)
                     .Order()
+                    .ToList(),
+                NotificationTimeSettings = notificationTimes
+                    .OrderBy(x => x.Time)
+                    .Select(x => x.ToSettings())
                     .ToList()
             });
         });
@@ -358,7 +376,9 @@ public partial class ReminderEditorPage : ContentPage
     {
         if (!notificationTimes.Any(x => x.Time == notificationTime))
         {
-            notificationTimes.Add(new NotificationTimeItem(notificationTime));
+            NotificationTimeItem item = new(notificationTime);
+            item.PropertyChanged += OnNotificationTimeItemChanged;
+            notificationTimes.Add(item);
             SortNotifications();
             RequestAutoSave();
         }
@@ -369,6 +389,7 @@ public partial class ReminderEditorPage : ContentPage
         if (sender is Button button &&
             button.CommandParameter is NotificationTimeItem item)
         {
+            item.PropertyChanged -= OnNotificationTimeItemChanged;
             notificationTimes.Remove(item);
             RequestAutoSave();
         }
@@ -383,6 +404,11 @@ public partial class ReminderEditorPage : ContentPage
 
             ShowDateTimePicker(item.Time, item.Time.TimeOfDay);
         }
+    }
+
+    private void OnNotificationTimeItemChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        RequestAutoSave();
     }
 
     private void SortNotifications()

@@ -26,6 +26,8 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     internal const string OpenEditorAction = "com.companyname.reminder.OPEN_REMINDER_EDITOR";
     internal const string ReminderIdExtra = "reminder_id";
     internal const string NotificationTimeTicksExtra = "notification_time_ticks";
+    internal const string NotificationOverlayEnabledExtra = "notification_overlay_enabled";
+    internal const string NotificationAlarmEnabledExtra = "notification_alarm_enabled";
     internal const int AlarmNotificationIdOffset = 900_000;
     internal const int OverlayForegroundNotificationIdOffset = 10_000;
     internal const int PermissionNotificationIdOffset = 20_000;
@@ -138,6 +140,12 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         DateTime now = DateTime.Now;
         foreach (DateTime notificationTime in reminder.NotificationTimes.Where(time => time > now).Distinct())
         {
+            NotificationTimeSettings settings = reminder.GetNotificationSettings(notificationTime);
+            if (!settings.IsPushEnabled && !settings.IsOverlayEnabled && !settings.IsAlarmEnabled)
+            {
+                continue;
+            }
+
             PendingIntent? pendingIntent = CreateNotificationTimePendingIntent(reminder.Id, notificationTime);
             long triggerAtMillis = new DateTimeOffset(notificationTime).ToUnixTimeMilliseconds();
             ScheduleNotificationTimeAlarm(triggerAtMillis, pendingIntent);
@@ -224,7 +232,11 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
     internal static void ShowOverlay(Context context, ReminderItem reminder, DateTime? notificationTime)
     {
-        if (!CanDrawOverlay(context))
+        NotificationTimeSettings settings = notificationTime.HasValue
+            ? reminder.GetNotificationSettings(notificationTime.Value)
+            : new NotificationTimeSettings { IsPushEnabled = true, IsOverlayEnabled = true, IsAlarmEnabled = true };
+
+        if (settings.IsOverlayEnabled && !CanDrawOverlay(context))
         {
             ShowPermissionRequiredNotification(context, reminder);
             return;
@@ -234,11 +246,53 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             ? RemoveNotificationTime(reminder.Id, notificationTime.Value) ?? reminder
             : reminder;
 
+        if (settings.IsPushEnabled)
+        {
+            ShowScheduledPushNotification(context, overlayReminder);
+        }
+
+        if (!settings.IsOverlayEnabled && !settings.IsAlarmEnabled)
+        {
+            return;
+        }
+
         Intent serviceIntent = new(context, typeof(ReminderOverlayService));
         serviceIntent.PutExtra(ReminderIdExtra, overlayReminder.Id);
+        if (notificationTime.HasValue)
+        {
+            serviceIntent.PutExtra(NotificationTimeTicksExtra, notificationTime.Value.Ticks);
+            serviceIntent.PutExtra(NotificationOverlayEnabledExtra, settings.IsOverlayEnabled);
+            serviceIntent.PutExtra(NotificationAlarmEnabledExtra, settings.IsAlarmEnabled);
+        }
         ContextCompat.StartForegroundService(context, serviceIntent);
     }
 
+
+    private static void ShowScheduledPushNotification(Context context, ReminderItem reminder)
+    {
+        PendingIntentFlags flags = PendingIntentFlags.UpdateCurrent;
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
+        {
+            flags |= PendingIntentFlags.Immutable;
+        }
+
+        PendingIntent? pendingIntent = PendingIntent.GetActivity(context, reminder.Id, CreateOpenEditorIntent(reminder.Id), flags);
+        Notification notification = new NotificationCompat.Builder(context, ChannelId)
+            .SetSmallIcon(Resource.Drawable.notification_icon)
+            .SetContentTitle("Напоминание")
+            .SetContentText(reminder.Text)
+            .SetStyle(new NotificationCompat.BigTextStyle().BigText(reminder.Text))
+            .SetContentIntent(pendingIntent)
+            .SetAutoCancel(true)
+            .SetPriority(NotificationCompat.PriorityHigh)
+            .Build();
+
+        NotificationManagerCompat manager = NotificationManagerCompat.From(context);
+        if (manager.AreNotificationsEnabled())
+        {
+            manager.Notify(reminder.Id, notification);
+        }
+    }
 
     private static ReminderItem? RemoveNotificationTime(int reminderId, DateTime notificationTime)
     {
@@ -260,6 +314,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         }
 
         int removedCount = reminder.NotificationTimes.RemoveAll(time => time == notificationTime);
+        reminder.NotificationTimeSettings.RemoveAll(time => time.Time == notificationTime);
         if (removedCount == 0)
         {
             return reminder;
@@ -395,11 +450,11 @@ public sealed class OverlayReminderReceiver : BroadcastReceiver
     {
         if (context is null) return;
         int reminderId = intent?.GetIntExtra(AndroidReminderNotificationService.ReminderIdExtra, 0) ?? 0;
+        long notificationTimeTicks = intent?.GetLongExtra(AndroidReminderNotificationService.NotificationTimeTicksExtra, 0L) ?? 0L;
+        DateTime? notificationTime = notificationTimeTicks == 0L ? null : new DateTime(notificationTimeTicks);
         ReminderItem? reminder = AndroidReminderNotificationService.LoadReminder(reminderId);
         if (reminder is not null)
         {
-            long notificationTimeTicks = intent?.GetLongExtra(AndroidReminderNotificationService.NotificationTimeTicksExtra, 0L) ?? 0L;
-            DateTime? notificationTime = notificationTimeTicks == 0L ? null : new DateTime(notificationTimeTicks);
             AndroidReminderNotificationService.ShowOverlay(context, reminder, notificationTime);
         }
     }
@@ -427,6 +482,9 @@ public sealed class ReminderOverlayService : Service
             return StartCommandResult.NotSticky;
         }
 
+        long notificationTimeTicks = intent?.GetLongExtra(AndroidReminderNotificationService.NotificationTimeTicksExtra, 0L) ?? 0L;
+        DateTime? notificationTime = notificationTimeTicks == 0L ? null : new DateTime(notificationTimeTicks);
+
         ReminderItem? reminder = AndroidReminderNotificationService.LoadReminder(reminderId);
         if (reminder is null)
         {
@@ -434,8 +492,24 @@ public sealed class ReminderOverlayService : Service
             return StartCommandResult.NotSticky;
         }
 
+        NotificationTimeSettings settings = notificationTime.HasValue
+            ? new NotificationTimeSettings
+            {
+                Time = notificationTime.Value,
+                IsOverlayEnabled = intent?.GetBooleanExtra(AndroidReminderNotificationService.NotificationOverlayEnabledExtra, true) ?? true,
+                IsAlarmEnabled = intent?.GetBooleanExtra(AndroidReminderNotificationService.NotificationAlarmEnabledExtra, false) ?? false,
+            }
+            : new NotificationTimeSettings { IsOverlayEnabled = true, IsAlarmEnabled = true };
+
         StartForeground(AndroidReminderNotificationService.OverlayForegroundNotificationIdOffset + reminder.Id, BuildForegroundNotification(reminder));
-        AddOverlay(reminder);
+        if (settings.IsOverlayEnabled)
+        {
+            AddOverlay(reminder, settings);
+        }
+        else if (settings.IsAlarmEnabled)
+        {
+            TriggerAlert(reminder);
+        }
         return StartCommandResult.NotSticky;
     }
 
@@ -453,10 +527,13 @@ public sealed class ReminderOverlayService : Service
         .SetOngoing(true)
         .Build();
 
-    private void AddOverlay(ReminderItem reminder)
+    private void AddOverlay(ReminderItem reminder, NotificationTimeSettings settings)
     {
         RemoveOverlay();
-        TriggerAlert(reminder);
+        if (settings.IsAlarmEnabled)
+        {
+            TriggerAlert(reminder);
+        }
 
         windowManager = GetSystemService(WindowService).JavaCast<IWindowManager>();
 
