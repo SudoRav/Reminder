@@ -102,7 +102,7 @@
 
                                     <Button Grid.Column="1"
         Text="✖"
-        CommandParameter="{Binding .}"
+        CommandParameter="{Binding .}" 
         HeightRequest="30"
         WidthRequest="30"
         Clicked="OnDeleteNotificationClicked"/>

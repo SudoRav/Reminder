@@ -1,4 +1,3 @@
-#if ANDROID
 using Android;
 using Android.App;
 using Android.Content;
@@ -10,10 +9,10 @@ using Android.OS;
 using Android.Provider;
 using Android.Runtime;
 using Android.Views;
-using Android.Widget;
 using AndroidX.Core.App;
 using AndroidX.Core.Content;
 using System.Text.Json;
+using Orientation = Android.Widget.Orientation;
 
 namespace Reminder;
 
@@ -336,9 +335,10 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     {
         if (Build.VERSION.SdkInt < BuildVersionCodes.O) return;
 
-        Uri alarmSound = RingtoneManager.GetDefaultUri(RingtoneType.Alarm)
-            ?? RingtoneManager.GetDefaultUri(RingtoneType.Ringtone)
-            ?? RingtoneManager.GetDefaultUri(RingtoneType.Notification);
+        Android.Net.Uri? alarmSound =
+     RingtoneManager.GetDefaultUri(RingtoneType.Alarm)
+     ?? RingtoneManager.GetDefaultUri(RingtoneType.Ringtone)
+     ?? RingtoneManager.GetDefaultUri(RingtoneType.Notification);
 
         AudioAttributes audioAttributes = new AudioAttributes.Builder()
             .SetUsage(AudioUsageKind.Alarm)
@@ -641,9 +641,10 @@ public sealed class ReminderOverlayService : Service
     {
         StopAlarmSignal();
 
-        Uri alarmSound = RingtoneManager.GetDefaultUri(RingtoneType.Alarm)
-            ?? RingtoneManager.GetDefaultUri(RingtoneType.Ringtone)
-            ?? RingtoneManager.GetDefaultUri(RingtoneType.Notification);
+        Android.Net.Uri? alarmSound =
+    RingtoneManager.GetDefaultUri(RingtoneType.Alarm)
+    ?? RingtoneManager.GetDefaultUri(RingtoneType.Ringtone)
+    ?? RingtoneManager.GetDefaultUri(RingtoneType.Notification);
 
         if (alarmSound is not null)
         {
@@ -737,4 +738,3 @@ public sealed class CompleteReminderReceiver : BroadcastReceiver
         MainThread.BeginInvokeOnMainThread(() => AndroidReminderNotificationService.NotifyReminderCompleted(reminderId));
     }
 }
-#endif
