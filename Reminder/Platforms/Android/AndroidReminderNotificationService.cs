@@ -48,7 +48,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     public async Task ShowAsync(ReminderItem reminder)
     {
         await EnsureOverlayPermissionAsync();
-        ScheduleOverlayAlarms(reminder);
+        ScheduleNotificationTimeAlarms(reminder);
 
         if (!await EnsureNotificationPermissionAsync())
         {
@@ -82,13 +82,13 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     public async Task ScheduleAsync(ReminderItem reminder)
     {
         await EnsureOverlayPermissionAsync();
-        ScheduleOverlayAlarms(reminder);
+        ScheduleNotificationTimeAlarms(reminder);
     }
 
     public void Cancel(int reminderId)
     {
         notificationManager.Cancel(reminderId);
-        CancelOverlayAlarms(reminderId);
+        CancelNotificationTimeAlarms(reminderId);
         DismissOverlay(context, reminderId);
     }
 
@@ -124,30 +124,49 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         return completeIntent;
     }
 
-    private void ScheduleOverlayAlarms(ReminderItem reminder)
+    private void ScheduleNotificationTimeAlarms(ReminderItem reminder)
     {
-        CancelOverlayAlarms(reminder.Id);
-        foreach (DateTime notificationTime in reminder.NotificationTimes.Where(time => time > DateTime.Now))
+        CancelNotificationTimeAlarms(reminder.Id);
+
+        DateTime now = DateTime.Now;
+        foreach (DateTime notificationTime in reminder.NotificationTimes.Where(time => time > now).Distinct())
         {
-            Intent intent = new(context, typeof(OverlayReminderReceiver));
-            intent.SetAction(AlarmAction);
-            intent.PutExtra(ReminderIdExtra, reminder.Id);
-            intent.PutExtra(NotificationTimeTicksExtra, notificationTime.Ticks);
-            int requestCode = GetOverlayRequestCode(reminder.Id, notificationTime);
-            PendingIntent? pendingIntent = PendingIntent.GetBroadcast(context, requestCode, intent, GetMutableFlags());
+            PendingIntent? pendingIntent = CreateNotificationTimePendingIntent(reminder.Id, notificationTime);
             long triggerAtMillis = new DateTimeOffset(notificationTime).ToUnixTimeMilliseconds();
-            try
-            {
-                alarmManager.SetExactAndAllowWhileIdle(AlarmType.RtcWakeup, triggerAtMillis, pendingIntent);
-            }
-            catch (Java.Lang.SecurityException)
-            {
-                alarmManager.SetAndAllowWhileIdle(AlarmType.RtcWakeup, triggerAtMillis, pendingIntent);
-            }
+            ScheduleNotificationTimeAlarm(triggerAtMillis, pendingIntent);
         }
     }
 
-    private void CancelOverlayAlarms(int reminderId)
+    private void ScheduleNotificationTimeAlarm(long triggerAtMillis, PendingIntent? pendingIntent)
+    {
+        if (pendingIntent is null)
+        {
+            return;
+        }
+
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.S && alarmManager.CanScheduleExactAlarms())
+        {
+            alarmManager.SetExactAndAllowWhileIdle(AlarmType.RtcWakeup, triggerAtMillis, pendingIntent);
+            return;
+        }
+
+        if (Build.VERSION.SdkInt < BuildVersionCodes.S)
+        {
+            try
+            {
+                alarmManager.SetExactAndAllowWhileIdle(AlarmType.RtcWakeup, triggerAtMillis, pendingIntent);
+                return;
+            }
+            catch (Java.Lang.SecurityException)
+            {
+                // Fall back to an inexact alarm when exact alarms are blocked by the device policy.
+            }
+        }
+
+        alarmManager.SetAndAllowWhileIdle(AlarmType.RtcWakeup, triggerAtMillis, pendingIntent);
+    }
+
+    private void CancelNotificationTimeAlarms(int reminderId)
     {
         ReminderItem? reminder = LoadReminder(reminderId);
         if (reminder is null)
@@ -155,19 +174,38 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             return;
         }
 
-        foreach (DateTime notificationTime in reminder.NotificationTimes)
+        foreach (DateTime notificationTime in reminder.NotificationTimes.Distinct())
         {
-            Intent intent = new(context, typeof(OverlayReminderReceiver));
-            intent.SetAction(AlarmAction);
-            intent.PutExtra(ReminderIdExtra, reminderId);
-            PendingIntent? pendingIntent = PendingIntent.GetBroadcast(context, GetOverlayRequestCode(reminderId, notificationTime), intent, GetMutableFlags());
-            alarmManager.Cancel(pendingIntent);
+            PendingIntent? pendingIntent = CreateNotificationTimePendingIntent(reminderId, notificationTime);
+            if (pendingIntent is not null)
+            {
+                alarmManager.Cancel(pendingIntent);
+                pendingIntent.Cancel();
+            }
         }
     }
 
-    private static int GetOverlayRequestCode(int reminderId, DateTime notificationTime) => HashCode.Combine(reminderId, notificationTime);
+    private PendingIntent? CreateNotificationTimePendingIntent(int reminderId, DateTime notificationTime)
+    {
+        Intent intent = new(context, typeof(OverlayReminderReceiver));
+        intent.SetAction(AlarmAction);
+        intent.PutExtra(ReminderIdExtra, reminderId);
+        intent.PutExtra(NotificationTimeTicksExtra, notificationTime.Ticks);
+        return PendingIntent.GetBroadcast(context, GetNotificationTimeRequestCode(reminderId, notificationTime), intent, GetImmutableFlags());
+    }
 
-    private static PendingIntentFlags GetMutableFlags()
+    private static int GetNotificationTimeRequestCode(int reminderId, DateTime notificationTime)
+    {
+        unchecked
+        {
+            int hash = 17;
+            hash = (hash * 31) + reminderId;
+            hash = (hash * 31) + notificationTime.Ticks.GetHashCode();
+            return hash;
+        }
+    }
+
+    private static PendingIntentFlags GetImmutableFlags()
     {
         PendingIntentFlags flags = PendingIntentFlags.UpdateCurrent;
         if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
