@@ -60,6 +60,7 @@ public partial class MainPage : ContentPage
             reminder.DisplayStart = editedReminder.DisplayStart;
             reminder.DisplayEnd = editedReminder.DisplayEnd;
             reminder.NotificationTimes = editedReminder.NotificationTimes;
+            reminder.NotificationTimeSettings = editedReminder.NotificationTimeSettings;
             RefreshReminders();
             SaveReminders();
             await ShowOrCancelNotificationAsync(reminder);
@@ -111,6 +112,7 @@ public partial class MainPage : ContentPage
             reminder.DisplayStart = editedReminder.DisplayStart;
             reminder.DisplayEnd = editedReminder.DisplayEnd;
             reminder.NotificationTimes = editedReminder.NotificationTimes;
+            reminder.NotificationTimeSettings = editedReminder.NotificationTimeSettings;
             RefreshReminders();
             SaveReminders();
             await ShowOrCancelNotificationAsync(reminder);
@@ -221,6 +223,7 @@ public partial class MainPage : ContentPage
 
         if (reminder.NotificationTimes.RemoveAll(time => time == notificationTime) > 0)
         {
+            reminder.NotificationTimeSettings.RemoveAll(time => time.Time == notificationTime);
             RefreshReminders();
         }
     }

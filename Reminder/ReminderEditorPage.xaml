@@ -107,9 +107,9 @@
         WidthRequest="30"
         Clicked="OnDeleteNotificationClicked"/>
 
-                                    <CheckBox Grid.Column="2" IsChecked="True"/> <!--пуш уведомление-->
-                                    <CheckBox Grid.Column="3" IsChecked="True"/> <!--сообщение на экране-->
-                                    <CheckBox Grid.Column="4" IsChecked="False"/> <!--будильник-->
+                                    <CheckBox Grid.Column="2" IsChecked="{Binding IsPushEnabled, Mode=TwoWay}"/> <!--пуш уведомление-->
+                                    <CheckBox Grid.Column="3" IsChecked="{Binding IsOverlayEnabled, Mode=TwoWay}"/> <!--сообщение на экране-->
+                                    <CheckBox Grid.Column="4" IsChecked="{Binding IsAlarmEnabled, Mode=TwoWay}"/> <!--будильник-->
                                 </Grid>
                             </Border>
                         </DataTemplate>
