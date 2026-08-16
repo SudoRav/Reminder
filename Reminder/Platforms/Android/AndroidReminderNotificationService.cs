@@ -4,6 +4,8 @@ using Android.App;
 using Android.Content;
 using Android.Content.PM;
 using Android.Graphics;
+using Android.Media;
+using Android.Net;
 using Android.OS;
 using Android.Provider;
 using Android.Runtime;
@@ -18,6 +20,7 @@ namespace Reminder;
 public sealed class AndroidReminderNotificationService : IReminderNotificationService
 {
     private const string ChannelId = "persistent_reminders";
+    internal const string AlarmChannelId = "scheduled_reminder_alarms";
     private const int NotificationPermissionRequestCode = 1001;
     private const string AlarmAction = "com.companyname.reminder.SHOW_OVERLAY_REMINDER";
     internal const string CompleteAction = "com.companyname.reminder.COMPLETE_REMINDER";
@@ -43,6 +46,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         notificationManager = (NotificationManager)context.GetSystemService(Context.NotificationService)!;
         alarmManager = (AlarmManager)context.GetSystemService(Context.AlarmService)!;
         CreateNotificationChannel();
+        CreateAlarmNotificationChannel();
     }
 
     public async Task ShowAsync(ReminderItem reminder)
@@ -82,6 +86,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     public async Task ScheduleAsync(ReminderItem reminder)
     {
         await EnsureOverlayPermissionAsync();
+        await EnsureNotificationPermissionAsync();
         ScheduleNotificationTimeAlarms(reminder);
     }
 
@@ -327,6 +332,34 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         notificationManager.CreateNotificationChannel(channel);
     }
 
+    private void CreateAlarmNotificationChannel()
+    {
+        if (Build.VERSION.SdkInt < BuildVersionCodes.O) return;
+
+        Uri alarmSound = RingtoneManager.GetDefaultUri(RingtoneType.Alarm)
+            ?? RingtoneManager.GetDefaultUri(RingtoneType.Ringtone)
+            ?? RingtoneManager.GetDefaultUri(RingtoneType.Notification);
+
+        AudioAttributes audioAttributes = new AudioAttributes.Builder()
+            .SetUsage(AudioUsageKind.Alarm)
+            .SetContentType(AudioContentType.Sonification)
+            .Build();
+
+        var channel = new NotificationChannel(
+            AlarmChannelId,
+            "Будильники напоминаний",
+            NotificationImportance.Max)
+        {
+            Description = "Громкие уведомления в назначенное время"
+        };
+
+        channel.EnableVibration(true);
+        channel.SetVibrationPattern([0, 800, 400, 800, 400, 1200]);
+        channel.SetSound(alarmSound, audioAttributes);
+        channel.LockscreenVisibility = NotificationVisibility.Public;
+        notificationManager.CreateNotificationChannel(channel);
+    }
+
     private static async Task<bool> EnsureNotificationPermissionAsync()
     {
         if (Build.VERSION.SdkInt < BuildVersionCodes.Tiramisu) return true;
@@ -364,6 +397,8 @@ public sealed class ReminderOverlayService : Service
     private WindowManagerLayoutParams? layoutParams;
     private IWindowManager? windowManager;
     private Android.Views.View? overlayView;
+    private MediaPlayer? alarmPlayer;
+    private Vibrator? vibrator;
     private int reminderId;
 
     public override IBinder? OnBind(Intent? intent) => null;
@@ -393,6 +428,7 @@ public sealed class ReminderOverlayService : Service
     public override void OnDestroy()
     {
         RemoveOverlay();
+        StopAlarmSignal();
         base.OnDestroy();
     }
 
@@ -405,9 +441,8 @@ public sealed class ReminderOverlayService : Service
 
     private void AddOverlay(ReminderItem reminder)
     {
-        TriggerAlert(reminder);
-
         RemoveOverlay();
+        TriggerAlert(reminder);
 
         windowManager = GetSystemService(WindowService).JavaCast<IWindowManager>();
 
@@ -534,7 +569,11 @@ public sealed class ReminderOverlayService : Service
             ViewGroup.LayoutParams.MatchParent,
             ViewGroup.LayoutParams.MatchParent,
             type,
-            WindowManagerFlags.NotFocusable | WindowManagerFlags.KeepScreenOn,
+            WindowManagerFlags.NotFocusable |
+            WindowManagerFlags.KeepScreenOn |
+            WindowManagerFlags.ShowWhenLocked |
+            WindowManagerFlags.TurnScreenOn |
+            WindowManagerFlags.DismissKeyguard,
             Format.Translucent)
         {
             Gravity = GravityFlags.Center
@@ -560,7 +599,7 @@ public sealed class ReminderOverlayService : Service
 
     private void TriggerAlert(ReminderItem reminder)
     {
-        const string channelId = "persistent_reminders";
+        StartAlarmSignal();
 
         PendingIntentFlags flags = PendingIntentFlags.UpdateCurrent;
         if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
@@ -572,30 +611,92 @@ public sealed class ReminderOverlayService : Service
             AndroidReminderNotificationService.CreateOpenEditorIntent(reminder.Id),
             flags);
 
-        Notification notification = new NotificationCompat.Builder(this, channelId)
+        Notification notification = new NotificationCompat.Builder(this, AndroidReminderNotificationService.AlarmChannelId)
             .SetSmallIcon(Resource.Drawable.notification_icon)
             .SetContentTitle("Напоминание")
             .SetContentText(reminder.Text)
             .SetStyle(new NotificationCompat.BigTextStyle().BigText(reminder.Text))
-            .SetPriority(NotificationCompat.PriorityHigh)
-            .SetCategory(NotificationCompat.CategoryReminder)
-            .SetAutoCancel(true)
-            .SetDefaults((int)NotificationDefaults.Sound | (int)NotificationDefaults.Vibrate)
+            .SetPriority(NotificationCompat.PriorityMax)
+            .SetCategory(NotificationCompat.CategoryAlarm)
+            .SetVisibility(NotificationCompat.VisibilityPublic)
+            .SetFullScreenIntent(pendingIntent, true)
+            .SetOngoing(true)
+            .SetAutoCancel(false)
+            .SetDefaults((int)NotificationDefaults.Sound | (int)NotificationDefaults.Vibrate | (int)NotificationDefaults.Lights)
             .SetContentIntent(pendingIntent)
             .Build();
 
         NotificationManagerCompat manager = NotificationManagerCompat.From(this);
+        if (!manager.AreNotificationsEnabled())
+        {
+            return;
+        }
 
         int notificationId = 900000 + reminder.Id;
 
         manager.Notify(notificationId, notification);
+    }
 
-        // Удаляем уведомление через секунду, чтобы осталось только окно Overlay.
-        MainThread.BeginInvokeOnMainThread(async () =>
+    private void StartAlarmSignal()
+    {
+        StopAlarmSignal();
+
+        Uri alarmSound = RingtoneManager.GetDefaultUri(RingtoneType.Alarm)
+            ?? RingtoneManager.GetDefaultUri(RingtoneType.Ringtone)
+            ?? RingtoneManager.GetDefaultUri(RingtoneType.Notification);
+
+        if (alarmSound is not null)
         {
-            await Task.Delay(1000);
-            manager.Cancel(notificationId);
-        });
+            alarmPlayer = new MediaPlayer();
+            alarmPlayer.SetAudioAttributes(new AudioAttributes.Builder()
+                .SetUsage(AudioUsageKind.Alarm)
+                .SetContentType(AudioContentType.Sonification)
+                .Build());
+            alarmPlayer.SetDataSource(this, alarmSound);
+            alarmPlayer.Looping = true;
+            alarmPlayer.SetVolume(1f, 1f);
+            alarmPlayer.Prepare();
+            alarmPlayer.Start();
+        }
+
+        vibrator = Build.VERSION.SdkInt >= BuildVersionCodes.S
+            ? ((VibratorManager)GetSystemService(VibratorManagerService)!).DefaultVibrator
+            : (Vibrator?)GetSystemService(VibratorService);
+
+        long[] pattern = [0, 800, 400, 800, 400, 1200];
+        if (vibrator is null || !vibrator.HasVibrator)
+        {
+            return;
+        }
+
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
+        {
+            vibrator.Vibrate(VibrationEffect.CreateWaveform(pattern, 0));
+        }
+        else
+        {
+#pragma warning disable CS0618
+            vibrator.Vibrate(pattern, 0);
+#pragma warning restore CS0618
+        }
+    }
+
+    private void StopAlarmSignal()
+    {
+        if (alarmPlayer is not null)
+        {
+            if (alarmPlayer.IsPlaying)
+            {
+                alarmPlayer.Stop();
+            }
+
+            alarmPlayer.Release();
+            alarmPlayer.Dispose();
+            alarmPlayer = null;
+        }
+
+        vibrator?.Cancel();
+        vibrator = null;
     }
 
     private void RemoveOverlay()
@@ -605,6 +706,7 @@ public sealed class ReminderOverlayService : Service
             windowManager.RemoveView(overlayView);
         }
         overlayView = null;
+        StopAlarmSignal();
     }
 }
 
