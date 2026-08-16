@@ -107,9 +107,9 @@
         WidthRequest="30"
         Clicked="OnDeleteNotificationClicked"/>
 
-                                    <CheckBox Grid.Column="2"/> <!--пуш уведомление-->
-                                    <CheckBox Grid.Column="3"/> <!--сообщение на экране-->
-                                    <CheckBox Grid.Column="4"/> <!--будильник-->
+                                    <CheckBox Grid.Column="2" IsChecked="True"/> <!--пуш уведомление-->
+                                    <CheckBox Grid.Column="3" IsChecked="True"/> <!--сообщение на экране-->
+                                    <CheckBox Grid.Column="4" IsChecked="False"/> <!--будильник-->
                                 </Grid>
                             </Border>
                         </DataTemplate>
