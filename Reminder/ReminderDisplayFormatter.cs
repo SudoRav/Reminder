@@ -60,8 +60,8 @@ public static class ReminderDisplayFormatter
 
     private static readonly string[] Months =
   {
-    "ЯНВ.", "ФЕВ.", "МАР.", "АПР.", "МАЙ.", "ИЮН.",
-    "ИЮЛ.", "АВГ.", "СЕН.", "ОКТ.", "НОЯ.", "ДЕК."
+    "ЯНВ", "ФЕВ", "МАР", "АПР", "МАЙ", "ИЮН",
+    "ИЮЛ", "АВГ", "СЕН", "ОКТ", "НОЯ", "ДЕК"
 };
 
     private static string FormatDateTime(DateTime value, TimeSpan hiddenTime)

@@ -326,7 +326,42 @@ public partial class ReminderEditorPage : ContentPage
 
     private async void OnSaveClicked(object? sender, EventArgs e)
     {
+        if (isInitializing)
+            return;
 
+        string text = ReminderTextEditor.Text?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            await DisplayAlert(
+                "Ошибка",
+                "Введите текст напоминания.",
+                "OK");
+
+            return;
+        }
+
+        ReminderItem savedReminder = new()
+        {
+            Id = reminder?.Id ?? 0,
+            Text = text,
+            DisplayStart = displayStart,
+            DisplayEnd = displayEnd,
+            NotificationTimes = notificationTimes
+                .Select(x => x.Time)
+                .Order()
+                .ToList(),
+            NotificationTimeSettings = notificationTimes
+                .OrderBy(x => x.Time)
+                .Select(x => x.ToSettings())
+                .ToList()
+        };
+
+        SaveRequested?.Invoke(this, savedReminder);
+
+        isDeleting = true;
+
+        await Navigation.PopModalAsync();
     }
 
     private async void OnAddWeekNotificationClicked(object? sender, EventArgs e)
@@ -439,5 +474,25 @@ public partial class ReminderEditorPage : ContentPage
         {
             RequestSave();
         }
+    }
+
+    private async void settime900(object? sender, EventArgs e)
+    {
+        OverlayTimePicker.Time = new TimeSpan(9, 0, 0);
+    }
+
+    private async void settime2100(object? sender, EventArgs e)
+    {
+        OverlayTimePicker.Time = new TimeSpan(21, 0, 0);
+    }
+
+    private async void settime1500(object? sender, EventArgs e)
+    {
+        OverlayTimePicker.Time = new TimeSpan(15, 0, 0);
+    }
+
+    private async void settime300(object? sender, EventArgs e)
+    {
+        OverlayTimePicker.Time = new TimeSpan(3, 0, 0);
     }
 }
