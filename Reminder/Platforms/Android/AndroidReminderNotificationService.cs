@@ -19,11 +19,13 @@ namespace Reminder;
 public sealed class AndroidReminderNotificationService : IReminderNotificationService
 {
     private const string ChannelId = "persistent_reminders";
+    internal const string OverlayForegroundChannelId = "reminder_overlay_foreground";
     internal const string AlarmChannelId = "scheduled_reminder_alarms";
     private const int NotificationPermissionRequestCode = 1001;
     private const string AlarmAction = "com.companyname.reminder.SHOW_OVERLAY_REMINDER";
     internal const string CompleteAction = "com.companyname.reminder.COMPLETE_REMINDER";
     internal const string OpenEditorAction = "com.companyname.reminder.OPEN_REMINDER_EDITOR";
+    internal const string StopAlarmAction = "com.companyname.reminder.STOP_ALARM";
     internal const string ReminderIdExtra = "reminder_id";
     internal const string NotificationTimeTicksExtra = "notification_time_ticks";
     internal const string NotificationOverlayEnabledExtra = "notification_overlay_enabled";
@@ -50,6 +52,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         notificationManager = (NotificationManager)context.GetSystemService(Context.NotificationService)!;
         alarmManager = (AlarmManager)context.GetSystemService(Context.AlarmService)!;
         CreateNotificationChannel();
+        CreateOverlayForegroundNotificationChannel();
         CreateAlarmNotificationChannel();
     }
 
@@ -400,19 +403,27 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         notificationManager.CreateNotificationChannel(channel);
     }
 
-    private void CreateAlarmNotificationChannel()
+    private void CreateOverlayForegroundNotificationChannel()
     {
         if (Build.VERSION.SdkInt < BuildVersionCodes.O) return;
 
-        Android.Net.Uri? alarmSound =
-     RingtoneManager.GetDefaultUri(RingtoneType.Alarm)
-     ?? RingtoneManager.GetDefaultUri(RingtoneType.Ringtone)
-     ?? RingtoneManager.GetDefaultUri(RingtoneType.Notification);
+        var channel = new NotificationChannel(
+            OverlayForegroundChannelId,
+            "Служба напоминаний",
+            NotificationImportance.Min)
+        {
+            Description = "Тихое служебное уведомление для показа окна напоминания"
+        };
 
-        AudioAttributes audioAttributes = new AudioAttributes.Builder()
-            .SetUsage(AudioUsageKind.Alarm)
-            .SetContentType(AudioContentType.Sonification)
-            .Build();
+        channel.EnableVibration(false);
+        channel.SetSound(null, null);
+        channel.SetShowBadge(false);
+        notificationManager.CreateNotificationChannel(channel);
+    }
+
+    private void CreateAlarmNotificationChannel()
+    {
+        if (Build.VERSION.SdkInt < BuildVersionCodes.O) return;
 
         var channel = new NotificationChannel(
             AlarmChannelId,
@@ -422,9 +433,8 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             Description = "Громкие уведомления в назначенное время"
         };
 
-        channel.EnableVibration(true);
-        channel.SetVibrationPattern([0, 800, 400, 800, 400, 1200]);
-        channel.SetSound(alarmSound, audioAttributes);
+        channel.EnableVibration(false);
+        channel.SetSound(null, null);
         channel.LockscreenVisibility = NotificationVisibility.Public;
         notificationManager.CreateNotificationChannel(channel);
     }
@@ -484,6 +494,12 @@ public sealed class ReminderOverlayService : Service
             return StartCommandResult.NotSticky;
         }
 
+        if (intent?.Action == AndroidReminderNotificationService.StopAlarmAction)
+        {
+            StopAlarmAfterUnlock();
+            return StartCommandResult.NotSticky;
+        }
+
         long notificationTimeTicks = intent?.GetLongExtra(AndroidReminderNotificationService.NotificationTimeTicksExtra, 0L) ?? 0L;
         DateTime? notificationTime = notificationTimeTicks == 0L ? null : new DateTime(notificationTimeTicks);
 
@@ -522,11 +538,14 @@ public sealed class ReminderOverlayService : Service
         base.OnDestroy();
     }
 
-    private Notification BuildForegroundNotification(ReminderItem reminder) => new NotificationCompat.Builder(this, "persistent_reminders")
+    private Notification BuildForegroundNotification(ReminderItem reminder) => new NotificationCompat.Builder(this, AndroidReminderNotificationService.OverlayForegroundChannelId)
         .SetSmallIcon(Resource.Drawable.notification_icon)
-        .SetContentTitle("Напоминание поверх приложений")
-        .SetContentText(reminder.Text)
+        .SetContentTitle("Служба напоминаний")
+        .SetContentText("Показ окна напоминания")
+        .SetPriority(NotificationCompat.PriorityMin)
+        .SetSilent(true)
         .SetOngoing(true)
+        .SetLocalOnly(true)
         .Build();
 
     private void AddOverlay(ReminderItem reminder, NotificationTimeSettings settings)
@@ -694,16 +713,6 @@ public sealed class ReminderOverlayService : Service
         StartAlarmSignal();
         RegisterUnlockReceiver();
 
-        PendingIntentFlags flags = PendingIntentFlags.UpdateCurrent;
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
-            flags |= PendingIntentFlags.Immutable;
-
-        PendingIntent? pendingIntent = PendingIntent.GetActivity(
-            this,
-            reminder.Id,
-            AndroidReminderNotificationService.CreateOpenEditorIntent(reminder.Id),
-            flags);
-
         Notification notification = new NotificationCompat.Builder(this, AndroidReminderNotificationService.AlarmChannelId)
             .SetSmallIcon(Resource.Drawable.notification_icon)
             .SetContentTitle("Напоминание")
@@ -712,11 +721,10 @@ public sealed class ReminderOverlayService : Service
             .SetPriority(NotificationCompat.PriorityMax)
             .SetCategory(NotificationCompat.CategoryAlarm)
             .SetVisibility(NotificationCompat.VisibilityPublic)
-            .SetFullScreenIntent(pendingIntent, true)
             .SetOngoing(true)
             .SetAutoCancel(false)
-            .SetDefaults((int)NotificationDefaults.Sound | (int)NotificationDefaults.Vibrate | (int)NotificationDefaults.Lights)
-            .SetContentIntent(pendingIntent)
+            .SetSilent(true)
+            .SetOnlyAlertOnce(true)
             .Build();
 
         NotificationManagerCompat manager = NotificationManagerCompat.From(this);

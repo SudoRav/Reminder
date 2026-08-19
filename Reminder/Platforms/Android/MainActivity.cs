@@ -23,6 +23,19 @@ namespace Reminder
             HandleIntent(intent);
         }
 
+        protected override void OnResume()
+        {
+            base.OnResume();
+            StopActiveReminderAlarm();
+        }
+
+        private void StopActiveReminderAlarm()
+        {
+            Intent serviceIntent = new(this, typeof(ReminderOverlayService));
+            serviceIntent.SetAction(AndroidReminderNotificationService.StopAlarmAction);
+            StartService(serviceIntent);
+        }
+
         private static void HandleIntent(Intent? intent)
         {
             if (intent?.Action != AndroidReminderNotificationService.OpenEditorAction)
