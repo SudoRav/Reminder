@@ -665,8 +665,7 @@ public sealed class ReminderOverlayService : Service
             WindowManagerFlags.NotFocusable |
             WindowManagerFlags.KeepScreenOn |
             WindowManagerFlags.ShowWhenLocked |
-            WindowManagerFlags.TurnScreenOn |
-            WindowManagerFlags.DismissKeyguard,
+            WindowManagerFlags.TurnScreenOn,
             Format.Translucent)
         {
             Gravity = GravityFlags.Center
@@ -801,9 +800,10 @@ public sealed class ReminderOverlayService : Service
             return;
         }
 
-        unlockReceiver = new UserPresentReceiver(StopAlarmAfterUnlock);
+        unlockReceiver = new UserPresentReceiver(StopAlarmAfterUnlock, IsDeviceLocked);
 
         IntentFilter filter = new(Intent.ActionUserPresent);
+        filter.AddAction(Intent.ActionScreenOff);
         if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
         {
             RegisterReceiver(unlockReceiver, filter, ReceiverFlags.NotExported);
@@ -816,6 +816,12 @@ public sealed class ReminderOverlayService : Service
         }
 
         isUnlockReceiverRegistered = true;
+    }
+
+    private bool IsDeviceLocked()
+    {
+        KeyguardManager? keyguardManager = GetSystemService(KeyguardService).JavaCast<KeyguardManager>();
+        return keyguardManager?.IsKeyguardLocked == true;
     }
 
     private void StopAlarmAfterUnlock()
@@ -841,11 +847,19 @@ public sealed class ReminderOverlayService : Service
         isUnlockReceiverRegistered = false;
     }
 
-    private sealed class UserPresentReceiver(Action onUserPresent) : BroadcastReceiver
+    private sealed class UserPresentReceiver(Action onUserPresent, Func<bool> isDeviceLocked) : BroadcastReceiver
     {
+        private bool observedLockedState = isDeviceLocked();
+
         public override void OnReceive(Context? context, Intent? intent)
         {
-            if (intent?.Action == Intent.ActionUserPresent)
+            if (intent?.Action == Intent.ActionScreenOff)
+            {
+                observedLockedState |= isDeviceLocked();
+                return;
+            }
+
+            if (intent?.Action == Intent.ActionUserPresent && observedLockedState && !isDeviceLocked())
             {
                 onUserPresent();
             }
