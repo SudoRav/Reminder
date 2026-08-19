@@ -459,7 +459,7 @@ public partial class ReminderEditorPage : ContentPage
         }
     }
 
-    private void UpdateDisplayPeriodLabel()
+    private void UpdateDisplayPeriodLabel()  
     {
         DisplayPeriodLabel.Text = ReminderDisplayFormatter.GetDisplayText(displayStart, displayEnd);
     }
