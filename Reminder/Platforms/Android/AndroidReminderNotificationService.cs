@@ -732,6 +732,7 @@ public sealed class ReminderOverlayService : Service
     private void StartAlarmSignal()
     {
         StopAlarmSignal();
+        RegisterUnlockReceiver();
 
         Android.Net.Uri? alarmSound =
     RingtoneManager.GetDefaultUri(RingtoneType.Alarm)
@@ -793,6 +794,65 @@ public sealed class ReminderOverlayService : Service
         vibrator?.Cancel();
         vibrator = null;
     }
+    private void RegisterUnlockReceiver()
+    {
+        if (isUnlockReceiverRegistered)
+        {
+            return;
+        }
+
+        unlockReceiver = new UserPresentReceiver(StopAlarmAfterUnlock);
+
+        IntentFilter filter = new(Intent.ActionUserPresent);
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.Tiramisu)
+        {
+            RegisterReceiver(unlockReceiver, filter, ReceiverFlags.NotExported);
+        }
+        else
+        {
+#pragma warning disable CS0618
+            RegisterReceiver(unlockReceiver, filter);
+#pragma warning restore CS0618
+        }
+
+        isUnlockReceiverRegistered = true;
+    }
+
+    private void StopAlarmAfterUnlock()
+    {
+        StopAlarmSignal();
+        NotificationManagerCompat.From(this).Cancel(AndroidReminderNotificationService.AlarmNotificationIdOffset + reminderId);
+        if (overlayView is null)
+        {
+            StopSelf();
+        }
+    }
+
+    private void UnregisterUnlockReceiver()
+    {
+        if (!isUnlockReceiverRegistered || unlockReceiver is null)
+        {
+            return;
+        }
+
+        UnregisterReceiver(unlockReceiver);
+        unlockReceiver.Dispose();
+        unlockReceiver = null;
+        isUnlockReceiverRegistered = false;
+    }
+
+    private sealed class UserPresentReceiver(Action onUserPresent) : BroadcastReceiver
+    {
+        public override void OnReceive(Context? context, Intent? intent)
+        {
+            if (intent?.Action == Intent.ActionUserPresent)
+            {
+                onUserPresent();
+            }
+        }
+    }
+
+
     private void RegisterUnlockReceiver()
     {
         if (isUnlockReceiverRegistered)
