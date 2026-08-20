@@ -26,6 +26,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     internal const string CompleteAction = "com.companyname.reminder.COMPLETE_REMINDER";
     internal const string OpenEditorAction = "com.companyname.reminder.OPEN_REMINDER_EDITOR";
     internal const string StopAlarmAction = "com.companyname.reminder.STOP_ALARM";
+    private const string AutoCompleteAction = "com.companyname.reminder.AUTO_COMPLETE_REMINDER";
     internal const string ReminderIdExtra = "reminder_id";
     internal const string NotificationTimeTicksExtra = "notification_time_ticks";
     internal const string NotificationOverlayEnabledExtra = "notification_overlay_enabled";
@@ -33,6 +34,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     internal const int AlarmNotificationIdOffset = 900_000;
     internal const int OverlayForegroundNotificationIdOffset = 10_000;
     internal const int PermissionNotificationIdOffset = 20_000;
+    private const int DisplayEndRequestCodeOffset = 30_000;
 
     private readonly Context context;
     private readonly NotificationManager notificationManager;
@@ -44,6 +46,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
     internal static void NotifyReminderCompleted(int reminderId) => ReminderCompleted?.Invoke(reminderId);
     internal static void NotifyReminderEditorRequested(int reminderId) => ReminderEditorRequested?.Invoke(reminderId);
+    internal static bool IsCompletionAction(string? action) => action == CompleteAction || action == AutoCompleteAction;
     private static void NotifyNotificationTimeTriggered(int reminderId, DateTime notificationTime) => NotificationTimeTriggered?.Invoke(reminderId, notificationTime);
 
     public AndroidReminderNotificationService()
@@ -59,7 +62,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     public async Task ShowAsync(ReminderItem reminder)
     {
         await EnsureOverlayPermissionAsync();
-        ScheduleNotificationTimeAlarms(reminder);
+        ScheduleReminderAlarms(reminder);
 
         if (!await EnsureNotificationPermissionAsync())
         {
@@ -94,13 +97,14 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     {
         await EnsureOverlayPermissionAsync();
         await EnsureNotificationPermissionAsync();
-        ScheduleNotificationTimeAlarms(reminder);
+        ScheduleReminderAlarms(reminder);
     }
 
     public void Cancel(int reminderId)
     {
         CancelVisibleNotifications(context, reminderId);
         CancelNotificationTimeAlarms(reminderId);
+        CancelDisplayEndAlarm(reminderId);
         DismissOverlay(context, reminderId);
     }
 
@@ -136,10 +140,16 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         return completeIntent;
     }
 
-    private void ScheduleNotificationTimeAlarms(ReminderItem reminder)
+    private void ScheduleReminderAlarms(ReminderItem reminder)
     {
         CancelNotificationTimeAlarms(reminder.Id);
+        CancelDisplayEndAlarm(reminder.Id);
+        ScheduleDisplayEndAlarm(reminder);
+        ScheduleNotificationTimeAlarms(reminder);
+    }
 
+    private void ScheduleNotificationTimeAlarms(ReminderItem reminder)
+    {
         DateTime now = DateTime.Now;
         foreach (DateTime notificationTime in reminder.NotificationTimes.Where(time => time > now).Distinct())
         {
@@ -149,10 +159,47 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
                 continue;
             }
 
-            PendingIntent? pendingIntent = CreateNotificationTimePendingIntent(reminder.Id, notificationTime);
+            PendingIntent? pendingIntent = CreateNotificationTimePendingIntent(context, reminder.Id, notificationTime);
             long triggerAtMillis = new DateTimeOffset(notificationTime).ToUnixTimeMilliseconds();
             ScheduleNotificationTimeAlarm(triggerAtMillis, pendingIntent);
         }
+    }
+
+    private void ScheduleDisplayEndAlarm(ReminderItem reminder)
+    {
+        if (!reminder.AutoCompleteOnDisplayEnd || reminder.DisplayEnd is not DateTime displayEnd || displayEnd <= DateTime.Now)
+        {
+            return;
+        }
+
+        PendingIntent? pendingIntent = CreateDisplayEndPendingIntent(context, reminder.Id);
+        long triggerAtMillis = new DateTimeOffset(displayEnd).ToUnixTimeMilliseconds();
+        ScheduleNotificationTimeAlarm(triggerAtMillis, pendingIntent);
+    }
+
+    private void CancelDisplayEndAlarm(int reminderId)
+    {
+        CancelDisplayEndAlarm(context, alarmManager, reminderId);
+    }
+
+    private static void CancelDisplayEndAlarm(Context context, AlarmManager alarmManager, int reminderId)
+    {
+        PendingIntent? pendingIntent = CreateDisplayEndPendingIntent(context, reminderId);
+        if (pendingIntent is null)
+        {
+            return;
+        }
+
+        alarmManager.Cancel(pendingIntent);
+        pendingIntent.Cancel();
+    }
+
+    private static PendingIntent? CreateDisplayEndPendingIntent(Context context, int reminderId)
+    {
+        Intent intent = new(context, typeof(CompleteReminderReceiver));
+        intent.SetAction(AutoCompleteAction);
+        intent.PutExtra(ReminderIdExtra, reminderId);
+        return PendingIntent.GetBroadcast(context, DisplayEndRequestCodeOffset + reminderId, intent, GetImmutableFlags());
     }
 
     private void ScheduleNotificationTimeAlarm(long triggerAtMillis, PendingIntent? pendingIntent)
@@ -194,7 +241,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
         foreach (DateTime notificationTime in reminder.NotificationTimes.Distinct())
         {
-            PendingIntent? pendingIntent = CreateNotificationTimePendingIntent(reminderId, notificationTime);
+            PendingIntent? pendingIntent = CreateNotificationTimePendingIntent(context, reminderId, notificationTime);
             if (pendingIntent is not null)
             {
                 alarmManager.Cancel(pendingIntent);
@@ -203,7 +250,7 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         }
     }
 
-    private PendingIntent? CreateNotificationTimePendingIntent(int reminderId, DateTime notificationTime)
+    private static PendingIntent? CreateNotificationTimePendingIntent(Context context, int reminderId, DateTime notificationTime)
     {
         Intent intent = new(context, typeof(OverlayReminderReceiver));
         intent.SetAction(AlarmAction);
@@ -328,6 +375,64 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         return reminder;
     }
 
+    internal static void CancelScheduledAlarms(Context context, int reminderId, ReminderItem? reminder)
+    {
+        AlarmManager alarmManager = (AlarmManager)context.GetSystemService(Context.AlarmService)!;
+        if (reminder is not null)
+        {
+            foreach (DateTime notificationTime in reminder.NotificationTimes.Distinct())
+            {
+                PendingIntent? pendingIntent = CreateNotificationTimePendingIntent(context, reminder.Id, notificationTime);
+                if (pendingIntent is not null)
+                {
+                    alarmManager.Cancel(pendingIntent);
+                    pendingIntent.Cancel();
+                }
+            }
+        }
+
+        CancelDisplayEndAlarm(context, alarmManager, reminderId);
+    }
+
+    internal static bool CompleteReminderInStore(int reminderId)
+    {
+        const string remindersKey = "reminders";
+        const string completedRemindersKey = "completed_reminders";
+        JsonSerializerOptions jsonOptions = new(JsonSerializerDefaults.Web);
+
+        List<ReminderItem> reminders = LoadRemindersFromPreferences(remindersKey, jsonOptions);
+        ReminderItem? reminder = reminders.FirstOrDefault(reminder => reminder.Id == reminderId);
+        if (reminder is null)
+        {
+            return false;
+        }
+
+        reminders.Remove(reminder);
+        reminder.CompletedAt = DateTime.Now;
+        reminder.NotificationTimes.Clear();
+        reminder.NotificationTimeSettings.Clear();
+
+        List<ReminderItem> completedReminders = LoadRemindersFromPreferences(completedRemindersKey, jsonOptions);
+        completedReminders.RemoveAll(item => item.Id == reminderId);
+        completedReminders.Add(reminder);
+
+        Preferences.Default.Set(remindersKey, JsonSerializer.Serialize(reminders, jsonOptions));
+        Preferences.Default.Set(completedRemindersKey, JsonSerializer.Serialize(completedReminders, jsonOptions));
+        return true;
+    }
+
+    private static List<ReminderItem> LoadRemindersFromPreferences(string key, JsonSerializerOptions jsonOptions)
+    {
+        string json = Preferences.Default.Get(key, "[]");
+        try
+        {
+            return JsonSerializer.Deserialize<List<ReminderItem>>(json, jsonOptions) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
 
     internal static void CancelVisibleNotifications(Context context, int reminderId)
     {
@@ -890,23 +995,13 @@ public sealed class CompleteReminderReceiver : BroadcastReceiver
 {
     public override void OnReceive(Context? context, Intent? intent)
     {
-        if (context is null || intent?.Action != AndroidReminderNotificationService.CompleteAction) return;
+        if (context is null || !AndroidReminderNotificationService.IsCompletionAction(intent?.Action)) return;
         int reminderId = intent.GetIntExtra(AndroidReminderNotificationService.ReminderIdExtra, 0);
         if (reminderId == 0) return;
 
-        string json = Preferences.Default.Get("reminders", "[]");
-        List<ReminderItem> reminders;
-        try
-        {
-            reminders = JsonSerializer.Deserialize<List<ReminderItem>>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
-        }
-        catch (JsonException)
-        {
-            reminders = [];
-        }
-
-        reminders.RemoveAll(reminder => reminder.Id == reminderId);
-        Preferences.Default.Set("reminders", JsonSerializer.Serialize(reminders, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        ReminderItem? reminder = AndroidReminderNotificationService.LoadReminder(reminderId);
+        AndroidReminderNotificationService.CancelScheduledAlarms(context, reminderId, reminder);
+        AndroidReminderNotificationService.CompleteReminderInStore(reminderId);
         AndroidReminderNotificationService.CancelVisibleNotifications(context, reminderId);
         AndroidReminderNotificationService.DismissOverlay(context, reminderId);
         MainThread.BeginInvokeOnMainThread(() => AndroidReminderNotificationService.NotifyReminderCompleted(reminderId));
