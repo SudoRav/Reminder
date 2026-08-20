@@ -6,6 +6,7 @@ namespace Reminder;
 public partial class MainPage : ContentPage
 {
     private readonly ObservableCollection<ReminderItem> reminders;
+    private readonly ObservableCollection<ReminderItem> completedReminders;
     private readonly ReminderStore store;
     private readonly IReminderNotificationService notificationService;
     private readonly SemaphoreSlim editorNavigationSemaphore = new(1, 1);
@@ -20,6 +21,7 @@ public partial class MainPage : ContentPage
             ?? throw new InvalidOperationException("Notification service is not registered.");
 
         reminders = new ObservableCollection<ReminderItem>(store.Load());
+        completedReminders = new ObservableCollection<ReminderItem>(store.LoadCompleted());
         RemindersCollectionView.ItemsSource = reminders;
         SubscribeToNotificationCompletion();
     }
@@ -67,6 +69,11 @@ public partial class MainPage : ContentPage
         };
 
         await Navigation.PushModalAsync(new NavigationPage(editorPage));
+    }
+
+    private async void OnCompletedClicked(object? sender, EventArgs e)
+    {
+        await Navigation.PushModalAsync(new NavigationPage(new CompletedRemindersPage()));
     }
 
     private async void OnReminderTapped(object? sender, TappedEventArgs e)
@@ -142,13 +149,18 @@ public partial class MainPage : ContentPage
         if (reminder is not null)
         {
             reminders.Remove(reminder);
+            reminder.CompletedAt = DateTime.Now;
+            reminder.NotificationTimes.Clear();
+            reminder.NotificationTimeSettings.Clear();
+            completedReminders.Add(reminder);
         }
 
         notificationService.Cancel(reminderId);
 
-        if (saveReminders)
+        if (saveReminders || reminder is not null)
         {
             SaveReminders();
+            SaveCompletedReminders();
         }
     }
 
@@ -168,7 +180,9 @@ public partial class MainPage : ContentPage
 
     private int GetNextReminderId()
     {
-        return reminders.Count == 0 ? 1 : reminders.Max(static reminder => reminder.Id) + 1;
+        return reminders.Concat(completedReminders).Any()
+            ? reminders.Concat(completedReminders).Max(static reminder => reminder.Id) + 1
+            : 1;
     }
 
     private void RefreshReminders()
@@ -183,6 +197,12 @@ public partial class MainPage : ContentPage
         foreach (ReminderItem reminder in store.Load())
         {
             reminders.Add(reminder);
+        }
+
+        completedReminders.Clear();
+        foreach (ReminderItem reminder in store.LoadCompleted())
+        {
+            completedReminders.Add(reminder);
         }
     }
 
@@ -239,5 +259,10 @@ public partial class MainPage : ContentPage
     private void SaveReminders()
     {
         store.Save(reminders);
+    }
+
+    private void SaveCompletedReminders()
+    {
+        store.SaveCompleted(completedReminders);
     }
 }

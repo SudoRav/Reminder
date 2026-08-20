@@ -2,22 +2,18 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:Reminder"
-             x:Class="Reminder.MainPage"
-             Title="Напоминания">
+             x:Class="Reminder.CompletedRemindersPage"
+             Title="Завершённые">
     <Grid Padding="24, 0, 24, 0" RowDefinitions="Auto,*,Auto" RowSpacing="0">
-
-        <CollectionView x:Name="RemindersCollectionView"
+        <CollectionView x:Name="CompletedRemindersCollectionView"
                         Grid.Row="1"
-                        EmptyView="Напоминаний пока нет">
-            <CollectionView.ItemTemplate> 
+                        EmptyView="Завершённых напоминаний пока нет">
+            <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="local:ReminderItem">
                     <Border Margin="0,0,0,12"
                             Padding="16"
                             StrokeShape="RoundRectangle 12"
-                            BackgroundColor="{AppThemeBinding Light=#FFF8D6, Dark=#4B421D}">
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnReminderTapped" CommandParameter="{Binding .}" />
-                        </Border.GestureRecognizers>
+                            BackgroundColor="{AppThemeBinding Light=#E8F5E9, Dark=#1B3A24}">
                         <VerticalStackLayout Spacing="10">
                             <Label Text="{Binding ., Converter={StaticResource ReminderListPeriodConverter}}"
                                    FontAttributes="Bold"
@@ -27,27 +23,22 @@
                             <Label Text="{Binding Text}"
                                    FontSize="18"
                                    LineBreakMode="WordWrap" />
+                            <Label Text="{Binding CompletedAt, StringFormat='Завершено: {0:g}'}"
+                                   FontSize="12"
+                                   TextColor="{AppThemeBinding Light=#4F6F52, Dark=#A5D6A7}" />
                         </VerticalStackLayout>
                     </Border>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
 
-        <Grid Grid.Row="1"
-              ColumnDefinitions="*,*"
-              ColumnSpacing="12"
-              HorizontalOptions="Center"
-              VerticalOptions="End"
-              Margin="24">
-            <Button WidthRequest="140"
-                    HeightRequest="40"
-                    Text="Завершённые"
-                    Clicked="OnCompletedClicked" />
-            <Button Grid.Column="1"
-                    WidthRequest="140"
-                    HeightRequest="40"
-                    Text="Создать"
-                    Clicked="OnCreateClicked"/>
-        </Grid>
+        <Button Grid.Row="1"
+                WidthRequest="140"
+                HeightRequest="40"
+                HorizontalOptions="Center"
+                VerticalOptions="End"
+                Margin="24"
+                Text="Напоминания"
+                Clicked="OnRemindersClicked" />
     </Grid>
 </ContentPage>
