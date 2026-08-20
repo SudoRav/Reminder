@@ -48,12 +48,12 @@ public static class ReminderDisplayFormatter
         return true;
     }
 
-    private static string FormatStart(DateTime value)
+    public static string FormatStart(DateTime value)
     {
         return FormatDateTime(value, new TimeSpan(0, 0, 0));
     }
 
-    private static string FormatEnd(DateTime value)
+    public static string FormatEnd(DateTime value)
     {
         return FormatDateTime(value, new TimeSpan(23, 0, 0));
     }
@@ -67,7 +67,6 @@ public static class ReminderDisplayFormatter
     private static string FormatDateTime(DateTime value, TimeSpan hiddenTime)
     {
         string month = Months[value.Month - 1];
-        //string date = $"{value:dd.MM} {month} {value:yy}";
         string date = $"{value:dd.MM} {month}";
         return value.TimeOfDay == hiddenTime ? date : $"{date} {value:HH:mm}";
     }

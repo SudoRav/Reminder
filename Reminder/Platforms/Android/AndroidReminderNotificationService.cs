@@ -565,7 +565,7 @@ public sealed class ReminderOverlayService : Service
 
         // Размер карточки внутри полноэкранного прозрачного слоя.
         int overlayWidth = (int)(screenWidth * 0.8f);
-        int overlayHeight = (int)(screenHeight * 0.25f);
+        int overlayHeight = (int)(screenHeight * 0.33f);
 
         var root = new Android.Widget.FrameLayout(this);
         root.SetBackgroundColor(Android.Graphics.Color.Transparent);
@@ -582,7 +582,11 @@ public sealed class ReminderOverlayService : Service
             Clickable = true
         };
 
-        card.SetBackgroundColor(Android.Graphics.Color.White);
+        var cardBackground = new Android.Graphics.Drawables.GradientDrawable();
+        cardBackground.SetColor(Android.Graphics.Color.White);
+        cardBackground.SetCornerRadius(32);
+
+        card.Background = cardBackground;
         card.SetPadding(40, 24, 40, 40);
 
         var header = new Android.Widget.LinearLayout(this)
@@ -592,7 +596,7 @@ public sealed class ReminderOverlayService : Service
 
         var title = new Android.Widget.TextView(this)
         {
-            Text = "Напоминание",
+            Text = $"{ReminderDisplayFormatter.GetDisplayText(reminder)}",
             TextSize = 16
         };
         title.SetTextColor(Android.Graphics.Color.Black);
@@ -602,7 +606,7 @@ public sealed class ReminderOverlayService : Service
         var closeButton = new Android.Widget.TextView(this)
         {
             Text = "✕",
-            TextSize = 24,
+            TextSize = 40,
             Gravity = GravityFlags.Center
         };
         closeButton.SetTextColor(Android.Graphics.Color.Black);
