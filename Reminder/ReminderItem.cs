@@ -14,6 +14,8 @@ public sealed class ReminderItem
 
     public List<NotificationTimeSettings> NotificationTimeSettings { get; set; } = [];
 
+    public DateTime? CompletedAt { get; set; }
+
     public NotificationTimeSettings GetNotificationSettings(DateTime notificationTime)
     {
         NotificationTimeSettings? settings = NotificationTimeSettings
