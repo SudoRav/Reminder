@@ -10,6 +10,8 @@ public sealed class ReminderItem
 
     public DateTime? DisplayEnd { get; set; }
 
+    public bool AutoCompleteOnDisplayEnd { get; set; }
+
     public List<DateTime> NotificationTimes { get; set; } = [];
 
     public List<NotificationTimeSettings> NotificationTimeSettings { get; set; } = [];

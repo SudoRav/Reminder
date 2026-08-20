@@ -19,6 +19,7 @@ public partial class ReminderEditorPage : ContentPage
     private readonly ObservableCollection<NotificationTimeItem> notificationTimes;
     private DisplayBoundary selectedBoundary;
     private bool isUpdatingPickers;
+    private bool autoCompleteOnDisplayEnd;
     private NotificationTimeItem? editingNotification;
     private bool isInitializing = true;
     private CancellationTokenSource? autoSaveCancellation;
@@ -38,6 +39,7 @@ public partial class ReminderEditorPage : ContentPage
         ReminderTextEditor.Text = reminder?.Text ?? string.Empty;
         displayStart = reminder?.DisplayStart;
         displayEnd = reminder?.DisplayEnd;
+        autoCompleteOnDisplayEnd = reminder?.AutoCompleteOnDisplayEnd ?? false;
 
         if (reminder is not null)
         {
@@ -63,6 +65,7 @@ public partial class ReminderEditorPage : ContentPage
         EndRadioButton.IsChecked = true;
 
         UpdateDisplayPeriodLabel();
+        UpdateAutoCompleteControls();
         isInitializing = false;
 
         //DisplayPeriodLabel.IsVisible = false;
@@ -220,10 +223,16 @@ public partial class ReminderEditorPage : ContentPage
         // Редактирование конца отображения
         else
         {
+            bool hadDisplayEnd = displayEnd is not null;
             displayEnd = value;
+            if (!hadDisplayEnd)
+            {
+                autoCompleteOnDisplayEnd = false;
+            }
         }
 
         UpdateDisplayPeriodLabel();
+        UpdateAutoCompleteControls();
         RequestAutoSave();
     }
 
@@ -251,6 +260,7 @@ public partial class ReminderEditorPage : ContentPage
             Text = text,
             DisplayStart = displayStart,
             DisplayEnd = displayEnd,
+            AutoCompleteOnDisplayEnd = autoCompleteOnDisplayEnd,
             NotificationTimes = notificationTimes
                 .Select(x => x.Time)
                 .Order()
@@ -299,6 +309,7 @@ public partial class ReminderEditorPage : ContentPage
                 Text = text,
                 DisplayStart = displayStart,
                 DisplayEnd = displayEnd,
+                AutoCompleteOnDisplayEnd = autoCompleteOnDisplayEnd,
                 NotificationTimes = notificationTimes
                     .Select(x => x.Time)
                     .Order()
@@ -347,6 +358,7 @@ public partial class ReminderEditorPage : ContentPage
             Text = text,
             DisplayStart = displayStart,
             DisplayEnd = displayEnd,
+            AutoCompleteOnDisplayEnd = autoCompleteOnDisplayEnd,
             NotificationTimes = notificationTimes
                 .Select(x => x.Time)
                 .Order()
@@ -457,6 +469,32 @@ public partial class ReminderEditorPage : ContentPage
         {
             notificationTimes.Add(item);
         }
+    }
+
+    private void OnAutoCompleteChanged(object? sender, CheckedChangedEventArgs e)
+    {
+        if (isInitializing)
+        {
+            return;
+        }
+
+        autoCompleteOnDisplayEnd = e.Value;
+        RequestAutoSave();
+    }
+
+    private void UpdateAutoCompleteControls()
+    {
+        bool hasDisplayEnd = displayEnd is not null;
+
+        AutoCompleteCheckBox.IsVisible = hasDisplayEnd;
+        AutoCompleteLabel.IsVisible = hasDisplayEnd;
+
+        if (!hasDisplayEnd)
+        {
+            autoCompleteOnDisplayEnd = false;
+        }
+
+        AutoCompleteCheckBox.IsChecked = hasDisplayEnd && autoCompleteOnDisplayEnd;
     }
 
     private void UpdateDisplayPeriodLabel()  
