@@ -17,20 +17,21 @@
                         SemanticProperties.Hint="Введите текст напоминания"
                         TextChanged="OnReminderChanged" />
 
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <Label x:Name="DisplayPeriodLabel" Grid.Column="0"
-                       FontAttributes="Bold"
-                       LineBreakMode="WordWrap" 
-                       VerticalTextAlignment="Center"/>
-
-                    <CheckBox Grid.Column="1" IsVisible="False"/>
-                    <Label Text="Завершить" Grid.Column="2" VerticalTextAlignment="Center"/>
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                    <Label x:Name="DisplayPeriodLabel"
+                           Grid.Column="0"
+                           FontAttributes="Bold"
+                           LineBreakMode="WordWrap"
+                           VerticalTextAlignment="Center" />
+                    <CheckBox x:Name="AutoCompleteCheckBox"
+                              Grid.Column="1"
+                              IsVisible="False"
+                              CheckedChanged="OnAutoCompleteChanged" />
+                    <Label x:Name="AutoCompleteLabel"
+                           Grid.Column="2"
+                           Text="Завершить"
+                           IsVisible="False"
+                           VerticalTextAlignment="Center" />
                 </Grid>
 
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
