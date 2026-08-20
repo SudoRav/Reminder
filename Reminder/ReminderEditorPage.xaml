@@ -29,7 +29,7 @@
                        LineBreakMode="WordWrap" 
                        VerticalTextAlignment="Center"/>
 
-                    <CheckBox Grid.Column="1"/>
+                    <CheckBox Grid.Column="1" IsVisible="False"/>
                     <Label Text="Завершить" Grid.Column="2" VerticalTextAlignment="Center"/>
                 </Grid>
 
