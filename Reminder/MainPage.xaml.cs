@@ -11,6 +11,7 @@ public partial class MainPage : ContentPage
     private readonly IReminderNotificationService notificationService;
     private readonly SemaphoreSlim editorNavigationSemaphore = new(1, 1);
     private int? openEditorReminderId;
+    private readonly IDispatcherTimer autoCompleteTimer;
 
     public MainPage()
     {
@@ -24,6 +25,11 @@ public partial class MainPage : ContentPage
         completedReminders = new ObservableCollection<ReminderItem>(store.LoadCompleted());
         RemindersCollectionView.ItemsSource = reminders;
         SubscribeToNotificationCompletion();
+
+        autoCompleteTimer = Dispatcher.CreateTimer();
+        autoCompleteTimer.Interval = TimeSpan.FromSeconds(30);
+        autoCompleteTimer.Tick += (_, _) => CompleteExpiredAutoCompleteReminders();
+        autoCompleteTimer.Start();
     }
 
     protected override async void OnAppearing()
@@ -32,6 +38,8 @@ public partial class MainPage : ContentPage
 
         ReloadReminders();
         DismissVisibleNotifications();
+
+        CompleteExpiredAutoCompleteReminders();
 
         foreach (ReminderItem reminder in reminders)
         {
@@ -61,6 +69,7 @@ public partial class MainPage : ContentPage
             reminder.Text = editedReminder.Text;
             reminder.DisplayStart = editedReminder.DisplayStart;
             reminder.DisplayEnd = editedReminder.DisplayEnd;
+            reminder.AutoCompleteOnDisplayEnd = editedReminder.AutoCompleteOnDisplayEnd;
             reminder.NotificationTimes = editedReminder.NotificationTimes;
             reminder.NotificationTimeSettings = editedReminder.NotificationTimeSettings;
             RefreshReminders();
@@ -118,6 +127,7 @@ public partial class MainPage : ContentPage
             reminder.Text = editedReminder.Text;
             reminder.DisplayStart = editedReminder.DisplayStart;
             reminder.DisplayEnd = editedReminder.DisplayEnd;
+            reminder.AutoCompleteOnDisplayEnd = editedReminder.AutoCompleteOnDisplayEnd;
             reminder.NotificationTimes = editedReminder.NotificationTimes;
             reminder.NotificationTimeSettings = editedReminder.NotificationTimeSettings;
             RefreshReminders();
@@ -161,6 +171,23 @@ public partial class MainPage : ContentPage
         {
             SaveReminders();
             SaveCompletedReminders();
+        }
+    }
+
+    private void CompleteExpiredAutoCompleteReminders()
+    {
+        DateTime now = DateTime.Now;
+        List<int> expiredReminderIds = reminders
+            .Where(reminder =>
+                reminder.AutoCompleteOnDisplayEnd &&
+                reminder.DisplayEnd is DateTime displayEnd &&
+                displayEnd <= now)
+            .Select(static reminder => reminder.Id)
+            .ToList();
+
+        foreach (int reminderId in expiredReminderIds)
+        {
+            CompleteReminder(reminderId, saveReminders: true);
         }
     }
 
