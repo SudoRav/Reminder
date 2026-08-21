@@ -17,7 +17,7 @@
                         SemanticProperties.Hint="Введите текст напоминания"
                         TextChanged="OnReminderChanged" />
 
-                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="0">
                     <Label x:Name="DisplayPeriodLabel"
                            Grid.Column="0"
                            FontAttributes="Bold"
@@ -27,11 +27,11 @@
                               Grid.Column="1"
                               IsVisible="False"
                               CheckedChanged="OnAutoCompleteChanged" />
-                    <Label x:Name="AutoCompleteLabel"
+                    <Label x:Name="AutoCompleteLabel" 
                            Grid.Column="2"
                            Text="Завершить"
                            IsVisible="False"
-                           VerticalTextAlignment="Center" />
+                           VerticalTextAlignment="Center" /> <!--автозавершение-->
                 </Grid>
 
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
@@ -121,7 +121,7 @@
         Clicked="OnDeleteNotificationClicked"/>
 
                                     <CheckBox Grid.Column="2" IsChecked="{Binding IsPushEnabled, Mode=TwoWay}"/> <!--пуш уведомление-->
-                                    <CheckBox Grid.Column="3" IsChecked="{Binding IsOverlayEnabled, Mode=TwoWay}"/> <!--сообщение на экране-->
+                                    <CheckBox Grid.Column="3" IsChecked="{Binding IsOverlayEnabled, Mode=TwoWay}"/> <!--Overlay уведомление / сообщение на экране-->
                                     <CheckBox Grid.Column="4" IsChecked="{Binding IsAlarmEnabled, Mode=TwoWay}"/> <!--будильник-->
                                 </Grid>
                             </Border>
