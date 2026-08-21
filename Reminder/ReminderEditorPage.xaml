@@ -2,27 +2,19 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:Reminder"
-             x:Class="Reminder.ReminderEditorPage"
-             Title="Напоминание">
+             x:Class="Reminder.ReminderEditorPage">
     <Grid x:Name="EditorRootGrid"
-          Padding="24, -10, 24, 0"
+          Padding="16, -10, 16, 0"
           RowDefinitions="*,Auto"
           RowSpacing="0">
         <ScrollView Grid.Row="0">
             <VerticalStackLayout Spacing="12">
-                <Editor x:Name="ReminderTextEditor"
-                        MinimumHeightRequest="253"
-                        AutoSize="TextChanges"
-                        Placeholder="Введите текст напоминания"
-                        SemanticProperties.Hint="Введите текст напоминания"
-                        TextChanged="OnReminderChanged" />
-
-                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="0">
+                <Grid x:Name="DisplayPeriodGrid" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="0">
                     <Label x:Name="DisplayPeriodLabel"
                            Grid.Column="0"
                            FontAttributes="Bold"
                            LineBreakMode="WordWrap"
-                           VerticalTextAlignment="Center" />
+                           VerticalTextAlignment="Center" MinimumHeightRequest="40"/>
                     <CheckBox x:Name="AutoCompleteCheckBox"
                               Grid.Column="1"
                               IsVisible="False"
@@ -33,6 +25,14 @@
                            IsVisible="False"
                            VerticalTextAlignment="Center" /> <!--автозавершение-->
                 </Grid>
+
+                <Editor x:Name="ReminderTextEditor"
+                        MinimumHeightRequest="280"
+                        AutoSize="TextChanges"
+                        FontSize="18"
+                        Placeholder="Введите текст напоминания"
+                        SemanticProperties.Hint="Введите текст напоминания"
+                        TextChanged="OnReminderChanged" />
 
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
                     <Button x:Name="StartButton"
@@ -55,7 +55,7 @@
             x:Name="StartRadioButton"
             Grid.Column="0"
             GroupName="NotificationTarget"
-            Content="»Начало"
+            Content="Начало"
             CheckedChanged="OnNotificationTargetChanged"
             HorizontalOptions="Fill"
             VerticalOptions="Fill" />
@@ -70,7 +70,7 @@
             x:Name="EndRadioButton"
             Grid.Column="1"
             GroupName="NotificationTarget"
-            Content="«Конец"
+            Content="Конец"
             CheckedChanged="OnNotificationTargetChanged"
             HorizontalOptions="Fill"
             VerticalOptions="Fill" />

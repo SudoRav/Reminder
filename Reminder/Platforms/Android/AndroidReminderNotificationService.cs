@@ -729,7 +729,7 @@ public sealed class ReminderOverlayService : Service
         var title = new Android.Widget.TextView(this)
         {
             Text = $"{ReminderDisplayFormatter.GetDisplayText(reminder)}",
-            TextSize = 16
+            TextSize = 14
         };
         title.SetTextColor(Android.Graphics.Color.Black);
 

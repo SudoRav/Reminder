@@ -485,9 +485,11 @@ public partial class ReminderEditorPage : ContentPage
     private void UpdateAutoCompleteControls()
     {
         bool hasDisplayEnd = displayEnd is not null;
+        bool hasDisplayStart = displayStart is not null;
 
         AutoCompleteCheckBox.IsVisible = hasDisplayEnd;
         AutoCompleteLabel.IsVisible = hasDisplayEnd;
+        DisplayPeriodGrid.IsVisible = hasDisplayEnd || hasDisplayStart;
 
         if (!hasDisplayEnd)
         {
