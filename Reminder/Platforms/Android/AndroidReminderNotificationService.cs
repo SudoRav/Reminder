@@ -311,22 +311,23 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             return;
         }
 
-        ReminderItem overlayReminder = notificationTime.HasValue
+        bool startsOverlayOrAlarm = settings.IsOverlayEnabled || settings.IsAlarmEnabled;
+        ReminderItem reminderToShow = startsOverlayOrAlarm && notificationTime.HasValue
             ? RemoveNotificationTime(reminder.Id, notificationTime.Value) ?? reminder
             : reminder;
 
         if (settings.IsPushEnabled)
         {
-            ShowScheduledPushNotification(context, overlayReminder);
+            ShowScheduledPushNotification(context, reminderToShow);
         }
 
-        if (!settings.IsOverlayEnabled && !settings.IsAlarmEnabled)
+        if (!startsOverlayOrAlarm)
         {
             return;
         }
 
         Intent serviceIntent = new(context, typeof(ReminderOverlayService));
-        serviceIntent.PutExtra(ReminderIdExtra, overlayReminder.Id);
+        serviceIntent.PutExtra(ReminderIdExtra, reminderToShow.Id);
         if (notificationTime.HasValue)
         {
             serviceIntent.PutExtra(NotificationTimeTicksExtra, notificationTime.Value.Ticks);
