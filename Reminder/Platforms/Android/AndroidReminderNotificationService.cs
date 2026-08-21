@@ -346,13 +346,17 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         }
 
         PendingIntent? pendingIntent = PendingIntent.GetActivity(context, reminder.Id, CreateOpenEditorIntent(reminder.Id), flags);
+        PendingIntent? completePendingIntent = PendingIntent.GetBroadcast(context, reminder.Id, CreateCompleteIntent(context, reminder.Id), flags);
+
         Notification notification = new NotificationCompat.Builder(context, ChannelId)
             .SetSmallIcon(Resource.Drawable.notification_icon)
-            .SetContentTitle("Напоминание")
+            .SetContentTitle(ReminderDisplayFormatter.GetDisplayText(reminder.DisplayStart, reminder.DisplayEnd))
             .SetContentText(reminder.Text)
             .SetStyle(new NotificationCompat.BigTextStyle().BigText(reminder.Text))
             .SetContentIntent(pendingIntent)
-            .SetAutoCancel(true)
+            .AddAction(Resource.Drawable.notification_icon, "Завершить", completePendingIntent)
+            .SetOngoing(true)
+            .SetAutoCancel(false)
             .SetPriority(NotificationCompat.PriorityHigh)
             .Build();
 
