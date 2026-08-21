@@ -61,7 +61,6 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
     public async Task ShowAsync(ReminderItem reminder)
     {
-        await EnsureOverlayPermissionAsync();
         ScheduleReminderAlarms(reminder);
 
         if (!await EnsureNotificationPermissionAsync())
@@ -69,35 +68,20 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             return;
         }
 
-        PendingIntentFlags flags = PendingIntentFlags.UpdateCurrent;
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
-        {
-            flags |= PendingIntentFlags.Immutable;
-        }
-
-        PendingIntent? pendingIntent = PendingIntent.GetActivity(context, reminder.Id, CreateOpenEditorIntent(reminder.Id), flags);
-        PendingIntent? completePendingIntent = PendingIntent.GetBroadcast(context, reminder.Id, CreateCompleteIntent(reminder.Id), flags);
-
-        Notification notification = new NotificationCompat.Builder(context, ChannelId)
-            .SetSmallIcon(Resource.Drawable.notification_icon)
-            .SetContentTitle(ReminderDisplayFormatter.GetDisplayText(reminder.DisplayStart, reminder.DisplayEnd))
-            .SetContentText(reminder.Text)
-            .SetStyle(new NotificationCompat.BigTextStyle().BigText(reminder.Text))
-            .SetContentIntent(pendingIntent)
-            .AddAction(Resource.Drawable.notification_icon, "Завершить", completePendingIntent)
-            .SetOngoing(true)
-            .SetAutoCancel(false)
-            .SetPriority(NotificationCompat.PriorityDefault)
-            .Build();
-
-        notificationManager.Notify(reminder.Id, notification);
+        ShowPersistentNotification(context, reminder);
+        await EnsureOverlayPermissionAsync();
     }
 
     public async Task ScheduleAsync(ReminderItem reminder)
     {
-        await EnsureOverlayPermissionAsync();
-        await EnsureNotificationPermissionAsync();
         ScheduleReminderAlarms(reminder);
+
+        if (await EnsureNotificationPermissionAsync())
+        {
+            ShowPersistentNotification(context, reminder);
+        }
+
+        await EnsureOverlayPermissionAsync();
     }
 
     public void Cancel(int reminderId)
@@ -132,7 +116,42 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         return intent;
     }
 
-    private Intent CreateCompleteIntent(int reminderId)
+    private static void ShowPersistentNotification(Context context, ReminderItem reminder)
+    {
+        PendingIntentFlags flags = PendingIntentFlags.UpdateCurrent;
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
+        {
+            flags |= PendingIntentFlags.Immutable;
+        }
+
+        PendingIntent? pendingIntent = PendingIntent.GetActivity(context, reminder.Id, CreateOpenEditorIntent(reminder.Id), flags);
+        PendingIntent? completePendingIntent = PendingIntent.GetBroadcast(context, reminder.Id, CreateCompleteIntent(context, reminder.Id), flags);
+
+        Notification notification = new NotificationCompat.Builder(context, ChannelId)
+            .SetSmallIcon(Resource.Drawable.notification_icon)
+            .SetContentTitle(ReminderDisplayFormatter.GetDisplayText(reminder.DisplayStart, reminder.DisplayEnd))
+            .SetContentText(reminder.Text)
+            .SetStyle(new NotificationCompat.BigTextStyle().BigText(reminder.Text))
+            .SetContentIntent(pendingIntent)
+            .AddAction(Resource.Drawable.notification_icon, "Завершить", completePendingIntent)
+            .SetOngoing(true)
+            .SetAutoCancel(false)
+            .SetPriority(NotificationCompat.PriorityDefault)
+            .Build();
+
+        NotifyIfEnabled(context, reminder.Id, notification);
+    }
+
+    private static void NotifyIfEnabled(Context context, int notificationId, Notification notification)
+    {
+        NotificationManagerCompat manager = NotificationManagerCompat.From(context);
+        if (manager.AreNotificationsEnabled())
+        {
+            manager.Notify(notificationId, notification);
+        }
+    }
+
+    private static Intent CreateCompleteIntent(Context context, int reminderId)
     {
         Intent completeIntent = new(context, typeof(CompleteReminderReceiver));
         completeIntent.SetAction(CompleteAction);
@@ -443,9 +462,17 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         notificationManager.Cancel(PermissionNotificationIdOffset + reminderId);
     }
 
+    internal static void CancelOverlayNotifications(Context context, int reminderId)
+    {
+        NotificationManager notificationManager = (NotificationManager)context.GetSystemService(Context.NotificationService)!;
+        notificationManager.Cancel(AlarmNotificationIdOffset + reminderId);
+        notificationManager.Cancel(OverlayForegroundNotificationIdOffset + reminderId);
+        notificationManager.Cancel(PermissionNotificationIdOffset + reminderId);
+    }
+
     internal static void DismissOverlay(Context context, int reminderId)
     {
-        CancelVisibleNotifications(context, reminderId);
+        CancelOverlayNotifications(context, reminderId);
         Intent serviceIntent = new(context, typeof(ReminderOverlayService));
         serviceIntent.PutExtra(ReminderIdExtra, reminderId);
         context.StopService(serviceIntent);
