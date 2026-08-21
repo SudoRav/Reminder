@@ -194,15 +194,7 @@ public partial class MainPage : ContentPage
     private async Task ShowOrCancelNotificationAsync(ReminderItem reminder)
     {
         notificationService.Cancel(reminder.Id);
-
-        if (ReminderDisplayFormatter.ShouldDisplayNow(reminder, DateTime.Now))
-        {
-            await notificationService.ShowAsync(reminder);
-        }
-        else
-        {
-            await notificationService.ScheduleAsync(reminder);
-        }
+        await notificationService.ShowAsync(reminder);
     }
 
     private int GetNextReminderId()
