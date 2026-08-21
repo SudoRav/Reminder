@@ -470,6 +470,15 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         notificationManager.Cancel(PermissionNotificationIdOffset + reminderId);
     }
 
+    internal static void RestorePersistentNotification(Context context, int reminderId)
+    {
+        ReminderItem? reminder = LoadReminder(reminderId);
+        if (reminder is not null)
+        {
+            ShowPersistentNotification(context, reminder);
+        }
+    }
+
     internal static void DismissOverlay(Context context, int reminderId)
     {
         CancelOverlayNotifications(context, reminderId);
@@ -746,6 +755,7 @@ public sealed class ReminderOverlayService : Service
         closeButton.Click += (_, _) =>
         {
             RemoveOverlay();
+            AndroidReminderNotificationService.RestorePersistentNotification(this, reminder.Id);
             StopSelf();
         };
 
