@@ -549,16 +549,23 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         notificationManager.CreateNotificationChannel(channel);
     }
 
-    private void CreateOverlayForegroundNotificationChannel()
+    private void CreateOverlayForegroundNotificationChannel(ReminderItem reminder)
     {
         if (Build.VERSION.SdkInt < BuildVersionCodes.O) return;
 
+        //var channel = new NotificationChannel(
+        //    OverlayForegroundChannelId,
+        //    "Служба напоминаний",
+        //    NotificationImportance.Min)
+        //{
+        //    Description = "Тихое служебное уведомление для показа окна напоминания"
+        //};
+
         var channel = new NotificationChannel(
-            OverlayForegroundChannelId,
-            "Служба напоминаний",
-            NotificationImportance.Min)
+            OverlayForegroundChannelId, ReminderDisplayFormatter.GetDisplayText(reminder.DisplayStart, reminder.DisplayEnd),
+        NotificationImportance.Min)
         {
-            Description = "Тихое служебное уведомление для показа окна напоминания"
+            Description = reminder.Text
         };
 
         channel.EnableVibration(false);
@@ -697,6 +704,7 @@ public sealed class ReminderOverlayService : Service
     private void AddOverlay(ReminderItem reminder, NotificationTimeSettings settings)
     {
         RemoveOverlay();
+
         if (settings.IsAlarmEnabled)
         {
             TriggerAlert(reminder);
@@ -716,11 +724,12 @@ public sealed class ReminderOverlayService : Service
         var root = new Android.Widget.FrameLayout(this);
         root.SetBackgroundColor(Android.Graphics.Color.Transparent);
         root.Clickable = true;
-        //root.Click += (_, _) =>
-        //{
-        //    RemoveOverlay();
-        //    StopSelf();
-        //};
+
+        // root.Click += (_, _) =>
+        // {
+        //     RemoveOverlay();
+        //     StopSelf();
+        // };
 
         var card = new Android.Widget.LinearLayout(this)
         {
@@ -745,9 +754,15 @@ public sealed class ReminderOverlayService : Service
             Text = $"{ReminderDisplayFormatter.GetDisplayText(reminder)}",
             TextSize = 14
         };
+
         title.SetTextColor(Android.Graphics.Color.Black);
 
-        header.AddView(title, new Android.Widget.LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1f));
+        header.AddView(
+            title,
+            new Android.Widget.LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WrapContent,
+                1f));
 
         var closeButton = new Android.Widget.TextView(this)
         {
@@ -755,8 +770,10 @@ public sealed class ReminderOverlayService : Service
             TextSize = 40,
             Gravity = GravityFlags.Center
         };
+
         closeButton.SetTextColor(Android.Graphics.Color.Black);
         closeButton.SetPadding(24, 0, 0, 0);
+
         closeButton.Click += (_, _) =>
         {
             RemoveOverlay();
@@ -764,8 +781,17 @@ public sealed class ReminderOverlayService : Service
             StopSelf();
         };
 
-        header.AddView(closeButton, new Android.Widget.LinearLayout.LayoutParams(ViewGroup.LayoutParams.WrapContent, ViewGroup.LayoutParams.WrapContent));
-        card.AddView(header, new Android.Widget.LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent));
+        header.AddView(
+            closeButton,
+            new Android.Widget.LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WrapContent,
+                ViewGroup.LayoutParams.WrapContent));
+
+        card.AddView(
+            header,
+            new Android.Widget.LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MatchParent,
+                ViewGroup.LayoutParams.WrapContent));
 
         var textView = new Android.Widget.TextView(this)
         {
@@ -785,42 +811,87 @@ public sealed class ReminderOverlayService : Service
 
         card.AddView(scrollView, scrollParams);
 
-        var button = new Android.Widget.Button(this)
+        // Две независимые кнопки: "Открыть" и "Завершить".
+        var buttonGrid = new Android.Widget.GridLayout(this)
         {
-            Text = "Завершить"
+            ColumnCount = 2,
+            RowCount = 1
         };
 
-        button.Click += (_, _) =>
+        var openButton = new Android.Widget.Button(this)
         {
-            SendBroadcast(
-                new Android.Content.Intent(this, typeof(CompleteReminderReceiver))
-                    .SetAction(AndroidReminderNotificationService.CompleteAction)
-                    .PutExtra(AndroidReminderNotificationService.ReminderIdExtra, reminder.Id));
+            Text = "Открыть"
+        };
+
+        openButton.Click += (_, _) =>
+        {
+            StartActivity(
+                AndroidReminderNotificationService.CreateOpenEditorIntent(reminder.Id));
 
             RemoveOverlay();
             StopSelf();
         };
 
-        var buttonParams = new Android.Widget.LinearLayout.LayoutParams(
+        var completeButton = new Android.Widget.Button(this)
+        {
+            Text = "Завершить"
+        };
+
+        completeButton.Click += (_, _) =>
+        {
+            SendBroadcast(
+                new Android.Content.Intent(
+                    this,
+                    typeof(CompleteReminderReceiver))
+                    .SetAction(AndroidReminderNotificationService.CompleteAction)
+                    .PutExtra(
+                        AndroidReminderNotificationService.ReminderIdExtra,
+                        reminder.Id));
+
+            RemoveOverlay();
+            StopSelf();
+        };
+
+        var openButtonParams = new Android.Widget.GridLayout.LayoutParams
+        {
+            Width = 0,
+            Height = ViewGroup.LayoutParams.WrapContent,
+            ColumnSpec = Android.Widget.GridLayout.InvokeSpec(0, 1, 1f)
+        };
+
+        var completeButtonParams = new Android.Widget.GridLayout.LayoutParams
+        {
+            Width = 0,
+            Height = ViewGroup.LayoutParams.WrapContent,
+            ColumnSpec = Android.Widget.GridLayout.InvokeSpec(1, 1, 1f)
+        };
+
+        buttonGrid.AddView(openButton, openButtonParams);
+        buttonGrid.AddView(completeButton, completeButtonParams);
+
+        var buttonGridParams = new Android.Widget.LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MatchParent,
             ViewGroup.LayoutParams.WrapContent)
         {
             TopMargin = 24
         };
 
-        card.AddView(button, buttonParams);
+        card.AddView(buttonGrid, buttonGridParams);
 
-        card.Click += (_, _) =>
-        {
-            StartActivity(AndroidReminderNotificationService.CreateOpenEditorIntent(reminder.Id));
-            RemoveOverlay();
-            StopSelf();
-        };
+        // card.Click += (_, _) =>
+        // {
+        //     StartActivity(AndroidReminderNotificationService.CreateOpenEditorIntent(reminder.Id));
+        //     RemoveOverlay();
+        //     StopSelf();
+        // };
 
-        var cardParams = new Android.Widget.FrameLayout.LayoutParams(overlayWidth, overlayHeight)
+        var cardParams = new Android.Widget.FrameLayout.LayoutParams(
+            overlayWidth,
+            overlayHeight)
         {
             Gravity = GravityFlags.Center
         };
+
         root.AddView(card, cardParams);
 
         WindowManagerTypes type =
@@ -849,12 +920,18 @@ public sealed class ReminderOverlayService : Service
         }
         catch (WindowManagerBadTokenException)
         {
-            AndroidReminderNotificationService.ShowPermissionRequiredNotification(this, reminder);
+            AndroidReminderNotificationService.ShowPermissionRequiredNotification(
+                this,
+                reminder);
+
             StopSelf();
         }
         catch (Java.Lang.SecurityException)
         {
-            AndroidReminderNotificationService.ShowPermissionRequiredNotification(this, reminder);
+            AndroidReminderNotificationService.ShowPermissionRequiredNotification(
+                this,
+                reminder);
+
             StopSelf();
         }
     }
