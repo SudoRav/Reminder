@@ -3,28 +3,42 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:Reminder"
              x:Class="Reminder.ReminderEditorPage">
+
     <Grid x:Name="EditorRootGrid"
           Padding="16, -10, 16, 0"
           RowDefinitions="*,Auto"
           RowSpacing="0">
+
         <ScrollView Grid.Row="0">
             <VerticalStackLayout Spacing="12">
-                <Grid x:Name="DisplayPeriodGrid" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="0">
+
+                <Grid x:Name="DisplayPeriodGrid"
+                      ColumnDefinitions="*,Auto,Auto"
+                      ColumnSpacing="0">
+
                     <Label x:Name="DisplayPeriodLabel"
                            Grid.Column="0"
+                           FontSize="14"
                            FontAttributes="Bold"
                            LineBreakMode="WordWrap"
-                           VerticalTextAlignment="Center" MinimumHeightRequest="40"/>
+                           VerticalTextAlignment="Center"
+                           MinimumHeightRequest="40"/>
+
                     <CheckBox x:Name="AutoCompleteCheckBox"
                               Grid.Column="1"
                               IsVisible="False"
-                              CheckedChanged="OnAutoCompleteChanged" />
-                    <Label x:Name="AutoCompleteLabel" 
+                              CheckedChanged="OnAutoCompleteChanged"/>
+
+                    <Label x:Name="AutoCompleteLabel"
                            Grid.Column="2"
+                           FontSize="12"
                            Text="Завершить"
                            IsVisible="False"
-                           VerticalTextAlignment="Center" /> <!--автозавершение-->
+                           VerticalTextAlignment="Center" />
+                    <!-- автозавершение -->
+
                 </Grid>
+
 
                 <Editor x:Name="ReminderTextEditor"
                         MinimumHeightRequest="280"
@@ -34,121 +48,186 @@
                         SemanticProperties.Hint="Введите текст напоминания"
                         TextChanged="OnReminderChanged" />
 
-                <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+
+                <Grid ColumnDefinitions="*,*"
+                      ColumnSpacing="12">
+
                     <Button x:Name="StartButton"
                             Text="Начало"
                             Clicked="OnStartClicked" />
+
                     <Button x:Name="EndButton"
                             Grid.Column="1"
                             Text="Конец"
                             Clicked="OnEndClicked" />
+
                 </Grid>
 
-                <Border Stroke="{AppThemeBinding Light=Gray, Dark=Gray}"
-        StrokeThickness="1"
-        StrokeShape="RoundRectangle 8"
-        Padding="0">
 
-                    <Grid ColumnDefinitions="*,*" ColumnSpacing="0">
+                <Grid ColumnDefinitions="Auto,*">
 
-                        <RadioButton
-            x:Name="StartRadioButton"
-            Grid.Column="0"
-            GroupName="NotificationTarget"
-            Content="Начало"
-            CheckedChanged="OnNotificationTargetChanged"
-            HorizontalOptions="Fill"
-            VerticalOptions="Fill" />
+                    <Label Grid.Column="0"
+                           FontSize="12"
+                           Text="Относительно: "
+                           VerticalTextAlignment="Center" />
 
-                        <BoxView
-            Grid.Column="0"
-            HorizontalOptions="End"
-            WidthRequest="1"
-            Color="{AppThemeBinding Light=Gray, Dark=Gray}" />
+                    <Border Grid.Column="1"
+                            Stroke="{AppThemeBinding Light=Gray, Dark=Gray}"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 8"
+                            Padding="0">
 
-                        <RadioButton
-            x:Name="EndRadioButton"
-            Grid.Column="1"
-            GroupName="NotificationTarget"
-            Content="Конец"
-            CheckedChanged="OnNotificationTargetChanged"
-            HorizontalOptions="Fill"
-            VerticalOptions="Fill" />
+                        <Grid ColumnDefinitions="Auto,*,*,*"
+                              ColumnSpacing="0">
+
+                            <RadioButton x:Name="StartRadioButton"
+                                         Grid.Column="1"
+                                         FontSize="12"
+                                         GroupName="NotificationTarget"
+                                         Content="Начала"
+                                         CheckedChanged="OnNotificationTargetChanged"
+                                         HorizontalOptions="Fill"
+                                         VerticalOptions="Fill" />
+
+                            <BoxView Grid.Column="1"
+                                     HorizontalOptions="End"
+                                     WidthRequest="1"
+                                     Color="{AppThemeBinding Light=Gray, Dark=Gray}" />
+
+                            <RadioButton x:Name="VarRadioButton"
+                                         Grid.Column="2"
+                                         FontSize="12"
+                                         GroupName="NotificationTarget"
+                                         Content="Напом"
+                                         CheckedChanged="OnNotificationTargetChanged"
+                                         HorizontalOptions="Fill"
+                                         VerticalOptions="Fill" />
+
+                            <BoxView Grid.Column="2"
+                                     HorizontalOptions="End"
+                                     WidthRequest="1"
+                                     Color="{AppThemeBinding Light=Gray, Dark=Gray}" />
+
+                            <RadioButton x:Name="EndRadioButton"
+                                         Grid.Column="3"
+                                         FontSize="12"
+                                         GroupName="NotificationTarget"
+                                         Content="Конца"
+                                         CheckedChanged="OnNotificationTargetChanged"
+                                         HorizontalOptions="Fill"
+                                         VerticalOptions="Fill" />
+
+                        </Grid>
+
+                    </Border>
+
+                </Grid>
+
+                    <Grid ColumnDefinitions="*,*,*"
+                          ColumnSpacing="8">
+
+                        <Button Text="За Неделю"
+                                Clicked="OnAddWeekNotificationClicked" />
+
+                        <Button Grid.Column="1"
+                                Text="За День"
+                                Clicked="OnAddDayNotificationClicked" />
+
+                        <Button Grid.Column="2"
+                                Text="За Час"
+                                Clicked="OnAddHourNotificationClicked" />
 
                     </Grid>
 
-                </Border>
 
-                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
-                    <Button Text="За Неделю"
-                            Clicked="OnAddWeekNotificationClicked" />
-                    <Button Grid.Column="1"
-                            Text="За День"
-                            Clicked="OnAddDayNotificationClicked" />
-                    <Button Grid.Column="2"
-                            Text="За Час"
-                            Clicked="OnAddHourNotificationClicked" />
-                </Grid>
-
-                <CollectionView x:Name="NotificationTimesCollectionView"
-                EmptyView="Оповещения не добавлены">
+                    <CollectionView x:Name="NotificationTimesCollectionView"
+                                EmptyView="Оповещения не добавлены">
 
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
+
                             <Border Margin="0,0,0,8"
-            Padding="10,0"
-            StrokeShape="RoundRectangle 8"
-            BackgroundColor="{AppThemeBinding Light=#EEF4FF, Dark=#1F2A36}">
+                                    Padding="10,0"
+                                    StrokeShape="RoundRectangle 8"
+                                    BackgroundColor="{AppThemeBinding Light=#EEF4FF, Dark=#1F2A36}">
 
                                 <Grid ColumnDefinitions="*,Auto,40,40,40">
 
                                     <Label Text="{Binding DisplayText}"
-                   VerticalOptions="Center">
+                                           VerticalOptions="Center">
 
                                         <Label.GestureRecognizers>
                                             <TapGestureRecognizer
-                        Tapped="OnNotificationTimeTapped"
-                        CommandParameter="{Binding .}" />
+                                                Tapped="OnNotificationTimeTapped"
+                                                CommandParameter="{Binding .}" />
                                         </Label.GestureRecognizers>
 
                                     </Label>
 
-                                    <Button Grid.Column="1" 
-        Text="✖"
-        CommandParameter="{Binding .}" 
-        HeightRequest="30"
-        WidthRequest="30"
-        Clicked="OnDeleteNotificationClicked"/>
+                                    <Button Grid.Column="1"
+                                            Text="✖"
+                                            CommandParameter="{Binding .}"
+                                            HeightRequest="30"
+                                            WidthRequest="30"
+                                            Clicked="OnDeleteNotificationClicked"/>
 
-                                    <CheckBox Grid.Column="2" IsChecked="{Binding IsPushEnabled, Mode=TwoWay}"/> <!--пуш уведомление-->
-                                    <CheckBox Grid.Column="3" IsChecked="{Binding IsOverlayEnabled, Mode=TwoWay}"/> <!--Overlay уведомление / сообщение на экране-->
-                                    <CheckBox Grid.Column="4" IsChecked="{Binding IsAlarmEnabled, Mode=TwoWay}"/> <!--будильник-->
+                                    <CheckBox Grid.Column="2"
+                                              IsChecked="{Binding IsPushEnabled, Mode=TwoWay}"/>
+                                    <!-- пуш уведомление -->
+
+                                    <CheckBox Grid.Column="3"
+                                              IsChecked="{Binding IsOverlayEnabled, Mode=TwoWay}"/>
+                                    <!-- Overlay уведомление / сообщение на экране -->
+
+                                    <CheckBox Grid.Column="4"
+                                              IsChecked="{Binding IsAlarmEnabled, Mode=TwoWay}"/>
+                                    <!-- будильник -->
+
                                 </Grid>
+
                             </Border>
+
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
+
                 </CollectionView>
+
             </VerticalStackLayout>
         </ScrollView>
 
-        <Button x:Name="DeleteButton"  WidthRequest="140" HeightRequest="40" HorizontalOptions="Start" VerticalOptions="End" Margin="20"
+
+        <Button x:Name="DeleteButton"
+                WidthRequest="140"
+                HeightRequest="40"
+                HorizontalOptions="Start"
+                VerticalOptions="End"
+                Margin="20"
                 Grid.Row="0"
                 Text="Завершить"
                 BackgroundColor="#B00020"
                 TextColor="White"
                 Clicked="OnDeleteClicked"/>
 
-        <Button x:Name="SaveButton"  WidthRequest="140" HeightRequest="40" HorizontalOptions="End" VerticalOptions="End" Margin="20"
+
+        <Button x:Name="SaveButton"
+                WidthRequest="140"
+                HeightRequest="40"
+                HorizontalOptions="End"
+                VerticalOptions="End"
+                Margin="20"
                 Grid.Row="0"
                 Text="Сохранить"
                 TextColor="Black"
                 Clicked="OnSaveClicked"/>
 
+
+        <!-- Затемнение и окно выбора даты/времени -->
         <Grid x:Name="DateTimePickerOverlay"
               Grid.RowSpan="2"
               Padding="16"
               BackgroundColor="#99000000"
               IsVisible="False">
+
             <Border Padding="28,24"
                     MaximumWidthRequest="560"
                     VerticalOptions="Center"
@@ -156,35 +235,51 @@
                     StrokeShape="RoundRectangle 24"
                     BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#111820}"
                     Stroke="{AppThemeBinding Light=#E7E2F2, Dark=#26313D}">
+
                 <Grid RowDefinitions="Auto,Auto,Auto,Auto"
                       RowSpacing="22">
+
                     <Label x:Name="DateTimeOverlayTitle"
                            Text="Select date &amp; time"
                            FontAttributes="Bold"
                            FontSize="22" />
 
+
+                    <!-- Выбор даты и времени -->
+
                     <Border Grid.Row="1"
                             StrokeThickness="0"
                             StrokeShape="RoundRectangle 18"
                             BackgroundColor="{AppThemeBinding Light=#EBEEF3, Dark=#4A5056}">
+
                         <Grid RowDefinitions="Auto,1,Auto">
+
+                            <!-- Дата -->
+
                             <Grid Padding="20,16"
                                   ColumnDefinitions="Auto,*,Auto"
                                   ColumnSpacing="16">
+
                                 <Label Text="📅"
                                        FontSize="24"
                                        VerticalOptions="Center" />
+
                                 <VerticalStackLayout Grid.Column="1"
                                                      Spacing="2">
+
                                     <Label Text="Date"
                                            FontAttributes="Bold" />
+
                                     <Label x:Name="SelectedDateLabel"
                                            Text="~" />
+
                                 </VerticalStackLayout>
+
                                 <Label Grid.Column="2"
                                        Text="›"
                                        FontSize="32"
                                        VerticalOptions="Center" />
+
                                 <DatePicker x:Name="OverlayDatePicker"
                                             Grid.ColumnSpan="3"
                                             DateSelected="OnDisplayDateSelected"
@@ -192,33 +287,46 @@
                                             HorizontalOptions="Fill"
                                             VerticalOptions="Fill"
                                             BackgroundColor="Transparent" />
+
                                 <Grid.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnDateRowTapped" />
                                 </Grid.GestureRecognizers>
+
                             </Grid>
+
 
                             <BoxView Grid.Row="1"
                                      HeightRequest="1"
                                      BackgroundColor="{AppThemeBinding Light=#D3D7DD, Dark=#111820}" />
 
+
+                            <!-- Время -->
+
                             <Grid Grid.Row="2"
                                   Padding="20,16"
                                   ColumnDefinitions="Auto,*,Auto"
                                   ColumnSpacing="16">
+
                                 <Label Text="🕘"
                                        FontSize="24"
                                        VerticalOptions="Center" />
+
                                 <VerticalStackLayout Grid.Column="1"
                                                      Spacing="2">
+
                                     <Label Text="Time"
                                            FontAttributes="Bold" />
+
                                     <Label x:Name="SelectedTimeLabel"
                                            Text="~" />
+
                                 </VerticalStackLayout>
+
                                 <Label Grid.Column="2"
                                        Text="›"
                                        FontSize="32"
                                        VerticalOptions="Center" />
+
                                 <TimePicker x:Name="OverlayTimePicker"
                                             Grid.ColumnSpan="3"
                                             PropertyChanged="OnDisplayTimeChanged"
@@ -226,52 +334,118 @@
                                             HorizontalOptions="Fill"
                                             VerticalOptions="Fill"
                                             BackgroundColor="Transparent" />
+
                                 <Grid.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnTimeRowTapped" />
                                 </Grid.GestureRecognizers>
+
                             </Grid>
+
                         </Grid>
+
                     </Border>
 
+
+                    <!-- Быстрое изменение даты -->
+
                     <Grid Grid.Row="2"
-      ColumnDefinitions="*,*"
-      RowDefinitions="Auto,Auto"
-      ColumnSpacing="10"
-      RowSpacing="8">
+                          ColumnDefinitions="*,*"
+                          RowDefinitions="Auto,Auto"
+                          ColumnSpacing="10"
+                          RowSpacing="8">
 
-                        <Button Grid.Row="0"
-            Grid.Column="0"
-            Text="Утро 9:00" 
-                                Clicked="settime900"/>
+                        <!-- Две кнопки -->
 
-                        <Button Grid.Row="1"
-            Grid.Column="0"
-            Text="День 15:00" Clicked="settime1500"/>
+                        <Border Grid.Row="0"
+                                Grid.Column="0"
+                                Grid.ColumnSpan="2"
+                                Stroke="{AppThemeBinding Light=Gray, Dark=Gray}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 8"
+                                Padding="5">
 
-                        <Button Grid.Row="0"
-            Grid.Column="1"
-            Text="Вечер 21:00" Clicked="settime2100"/>
+                            <Grid ColumnDefinitions="*,*"
+                                  ColumnSpacing="5">
 
-                        <Button Grid.Row="1"
-            Grid.Column="1"
-            Text="Ночь 3:00" Clicked="settime300"/>
+                                <Button Grid.Column="0"
+                                        Text="-1 День"
+                                        Clicked="rem1day"/>
+
+                                <Button Grid.Column="1"
+                                        Text="+1 День"
+                                        Clicked="add1day"/>
+
+                            </Grid>
+
+                        </Border>
+
+
+                        <!-- Четыре кнопки -->
+
+                        <Border Grid.Row="1"
+                                Grid.Column="0"
+                                Grid.ColumnSpan="2"
+                                Stroke="{AppThemeBinding Light=Gray, Dark=Gray}"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 8"
+                                Padding="5">
+
+                            <Grid RowDefinitions="Auto,Auto"
+                                  ColumnDefinitions="*,*"
+                                  ColumnSpacing="5"
+                                  RowSpacing="5">
+
+                                <Button Grid.Row="0"
+                                        Grid.Column="0"
+                                        Text="Утро 9:00"
+                                        Clicked="settime900"/>
+
+                                <Button Grid.Row="0"
+                                        Grid.Column="1"
+                                        Text="Вечер 21:00"
+                                        Clicked="settime2100"/>
+
+                                <Button Grid.Row="1"
+                                        Grid.Column="0"
+                                        Text="День 15:00"
+                                        Clicked="settime1500"/>
+
+                                <Button Grid.Row="1"
+                                        Grid.Column="1"
+                                        Text="Ночь 3:00"
+                                        Clicked="settime300"/>
+
+                            </Grid>
+
+                        </Border>
 
                     </Grid>
+
+
+                    <!-- Кнопки отмены/сохранения -->
 
                     <HorizontalStackLayout Grid.Row="3"
                                            HorizontalOptions="End"
                                            Spacing="24">
+
                         <Button Text="Отмена"
                                 BackgroundColor="Transparent"
-                                Clicked="OnCancelDateTimeClicked" TextColor="White"/>
+                                Clicked="OnCancelDateTimeClicked"
+                                TextColor="White"/>
+
                         <Button Text="Save"
                                 BackgroundColor="Transparent"
-                                Clicked="OnSaveDateTimeClicked" TextColor="White"/>
+                                Clicked="OnSaveDateTimeClicked"
+                                TextColor="White"/>
+
                     </HorizontalStackLayout>
 
-
                 </Grid>
+
             </Border>
+
         </Grid>
+
     </Grid>
+
 </ContentPage>

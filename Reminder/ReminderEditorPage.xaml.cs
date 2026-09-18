@@ -393,14 +393,32 @@ public partial class ReminderEditorPage : ContentPage
 
     private async Task AddNotificationTimeAsync(TimeSpan offset)
     {
-        DateTime? targetDateTime = StartRadioButton.IsChecked
-            ? displayStart
-            : displayEnd;
+        DateTime? targetDateTime = null;
+
+        if (StartRadioButton.IsChecked)
+            targetDateTime = displayStart;
+
+        if (EndRadioButton.IsChecked)
+            targetDateTime = displayEnd;
+
+        if (VarRadioButton.IsChecked)
+            targetDateTime = notificationTimes.Count > 0
+                ? notificationTimes.Min(x => x.Time)
+                : null;
 
         if (targetDateTime is null)
         {
-            string targetName = StartRadioButton.IsChecked ? "начала" : "конца";
-            await DisplayAlert("Ошибка", $"Сначала выберите дату/время {targetName}.", "OK");
+            string targetName = StartRadioButton.IsChecked
+                ? "начала"
+                : EndRadioButton.IsChecked
+                    ? "конца"
+                    : "уведомления";
+
+            await DisplayAlert(
+                "Ошибка",
+                $"Сначала выберите дату/время {targetName}.",
+                "OK");
+
             return;
         }
 
@@ -534,5 +552,15 @@ public partial class ReminderEditorPage : ContentPage
     private async void settime300(object? sender, EventArgs e)
     {
         OverlayTimePicker.Time = new TimeSpan(3, 0, 0);
+    }
+
+    private async void add1day(object? sender, EventArgs e)
+    {
+        OverlayDatePicker.Date = OverlayDatePicker.Date.AddDays(1);
+    }
+
+    private async void rem1day(object? sender, EventArgs e)
+    {
+        OverlayDatePicker.Date = OverlayDatePicker.Date.AddDays(-1);
     }
 }
