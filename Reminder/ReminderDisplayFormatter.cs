@@ -15,7 +15,7 @@ public static class ReminderDisplayFormatter
 
         if (start is not null && end is not null)
         {
-            return $"{FormatStart(start.Value)} — {FormatEnd(end.Value)}";
+            return $"{FormatStart(start.Value)} — {FormatEnd(end!.Value)}";
         }
 
         return start is not null
