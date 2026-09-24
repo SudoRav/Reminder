@@ -92,7 +92,7 @@ public partial class ReminderEditorPage : ContentPage
 
         DateTime endDate = displayStart?.Date.AddDays(1) ?? DateTime.Today.AddDays(1);
         ShowDateTimePicker(endDate + new TimeSpan(23, 0, 0), new TimeSpan(23, 0, 0));
-        //                              ^^^^^^^^^^^^^^^^^^^^^^^^
+
         StartRadioButton.IsChecked = false;
         EndRadioButton.IsChecked = true;
     }
