@@ -24,22 +24,52 @@ public partial class ReminderEditorPage : ContentPage
     private bool isInitializing = true;
     private CancellationTokenSource? autoSaveCancellation;
 
-    //автосохранение
-    private bool isAutoSaveEnabled = false; // или true - по умолчанию
+    // Автосохранение
+    private bool isAutoSaveEnabled = false;
+
+    // ============================================================
+    // ТАЙМЕР
+    // ============================================================
+
+    private const double TimerWheelItemHeight = 60;
+    private const double TimerWheelTopPadding = 90;
+
+    private int timerDays;
+    private int timerHours;
+    private int timerMinutes;
+
+    private int pendingTimerDays;
+    private int pendingTimerHours;
+    private int pendingTimerMinutes;
+
+    private CancellationTokenSource? daysSnapCancellation;
+    private CancellationTokenSource? hoursSnapCancellation;
+    private CancellationTokenSource? minutesSnapCancellation;
+
+    // Не даёт программному ScrollToAsync снова запускать snap.
+    private bool isTimerWheelProgrammaticScroll;
 
     public event EventHandler<ReminderItem>? SaveRequested;
 
     public event EventHandler? DeleteRequested;
 
+
     public ReminderEditorPage(ReminderItem? reminder = null)
     {
         InitializeComponent();
 
+        InitializeTimerWheels();
+        UpdateTimerDisplay();
+
         this.reminder = reminder;
+
         ReminderTextEditor.Text = reminder?.Text ?? string.Empty;
+
         displayStart = reminder?.DisplayStart;
         displayEnd = reminder?.DisplayEnd;
-        autoCompleteOnDisplayEnd = reminder?.AutoCompleteOnDisplayEnd ?? false;
+
+        autoCompleteOnDisplayEnd =
+            reminder?.AutoCompleteOnDisplayEnd ?? false;
 
         if (reminder is not null)
         {
@@ -66,16 +96,21 @@ public partial class ReminderEditorPage : ContentPage
 
         UpdateDisplayPeriodLabel();
         UpdateAutoCompleteControls();
-        isInitializing = false;
 
-        //DisplayPeriodLabel.IsVisible = false;
+        isInitializing = false;
     }
+
+
+    // ============================================================
+    // ДАТА / ВРЕМЯ
+    // ============================================================
 
     private void OnStartClicked(object? sender, EventArgs e)
     {
         DisplayPeriodLabel.IsVisible = true;
 
         selectedBoundary = DisplayBoundary.Start;
+
         ShowDateTimePicker(
             displayEnd?.Date.AddDays(-1) ?? DateTime.Today,
             TimeSpan.Zero);
@@ -84,20 +119,29 @@ public partial class ReminderEditorPage : ContentPage
         EndRadioButton.IsChecked = false;
     }
 
+
     private void OnEndClicked(object? sender, EventArgs e)
     {
         DisplayPeriodLabel.IsVisible = true;
 
         selectedBoundary = DisplayBoundary.End;
 
-        DateTime endDate = displayStart?.Date.AddDays(1) ?? DateTime.Today.AddDays(1);
-        ShowDateTimePicker(endDate + new TimeSpan(23, 0, 0), new TimeSpan(23, 0, 0));
+        DateTime endDate =
+            displayStart?.Date.AddDays(1)
+            ?? DateTime.Today.AddDays(1);
+
+        ShowDateTimePicker(
+            endDate + new TimeSpan(23, 0, 0),
+            new TimeSpan(23, 0, 0));
 
         StartRadioButton.IsChecked = false;
         EndRadioButton.IsChecked = true;
     }
 
-    private void ShowDateTimePicker(DateTime? dateTime, TimeSpan defaultTime)
+
+    private void ShowDateTimePicker(
+        DateTime? dateTime,
+        TimeSpan defaultTime)
     {
         DateTime initialDate;
         TimeSpan initialTime;
@@ -119,29 +163,37 @@ public partial class ReminderEditorPage : ContentPage
         }
 
         isUpdatingPickers = true;
+
         OverlayDatePicker.Date = initialDate;
         OverlayTimePicker.Time = initialTime;
+
         isUpdatingPickers = false;
 
-        DateTimeOverlayTitle.Text = selectedBoundary == DisplayBoundary.Start
-            ? "Выберите дату/время начала"
-            : "Выберите дату/время конца";
-
         UpdateSelectedDateTimeLabels();
+
         DateTimePickerOverlay.IsVisible = true;
     }
 
-    private void OnDateRowTapped(object? sender, TappedEventArgs e)
+
+    private void OnDateRowTapped(
+        object? sender,
+        TappedEventArgs e)
     {
         _ = OpenPickerAsync(OverlayDatePicker);
     }
 
-    private void OnTimeRowTapped(object? sender, TappedEventArgs e)
+
+    private void OnTimeRowTapped(
+        object? sender,
+        TappedEventArgs e)
     {
         _ = OpenPickerAsync(OverlayTimePicker);
     }
 
-    private void OnDisplayDateSelected(object? sender, DateChangedEventArgs e)
+
+    private void OnDisplayDateSelected(
+        object? sender,
+        DateChangedEventArgs e)
     {
         if (!isUpdatingPickers)
         {
@@ -149,57 +201,88 @@ public partial class ReminderEditorPage : ContentPage
         }
     }
 
-    private void OnDisplayTimeChanged(object? sender, PropertyChangedEventArgs e)
+
+    private void OnDisplayTimeChanged(
+        object? sender,
+        PropertyChangedEventArgs e)
     {
-        if (!isUpdatingPickers && e.PropertyName == TimePicker.TimeProperty.PropertyName)
+        if (!isUpdatingPickers &&
+            e.PropertyName == TimePicker.TimeProperty.PropertyName)
         {
             UpdateSelectedDateTimeLabels();
         }
     }
 
-    private void OnCancelDateTimeClicked(object? sender, EventArgs e)
+
+    private void OnCancelDateTimeClicked(
+        object? sender,
+        EventArgs e)
     {
+        editingNotification = null;
         DateTimePickerOverlay.IsVisible = false;
     }
 
-    private void OnSaveDateTimeClicked(object? sender, EventArgs e)
+
+    private void OnSaveDateTimeClicked(
+        object? sender,
+        EventArgs e)
     {
         ApplySelectedDateTime();
+
         DateTimePickerOverlay.IsVisible = false;
     }
+
 
     private void UpdateSelectedDateTimeLabels()
     {
-        SelectedDateLabel.Text = OverlayDatePicker.Date.ToString("d MMM yyyy", CultureInfo.CurrentCulture);
-        SelectedTimeLabel.Text = OverlayTimePicker.Time.ToString(@"hh\:mm", CultureInfo.CurrentCulture);
+        SelectedDateLabel.Text =
+            OverlayDatePicker.Date.ToString(
+                "d MMM yyyy",
+                CultureInfo.CurrentCulture);
+
+        SelectedTimeLabel.Text =
+            OverlayTimePicker.Time.ToString(
+                @"hh\:mm",
+                CultureInfo.CurrentCulture);
     }
+
 
     private static async Task OpenPickerAsync(View picker)
     {
         await Task.Delay(50);
 
-        bool focused = await picker.Dispatcher.DispatchAsync(picker.Focus);
+        bool focused =
+            await picker.Dispatcher.DispatchAsync(picker.Focus);
+
         if (!focused)
         {
             OpenPickerWithIsOpenProperty(picker);
         }
     }
 
+
     private static bool OpenPickerWithIsOpenProperty(View picker)
     {
-        PropertyInfo? isOpenProperty = picker.GetType().GetProperty("IsOpen");
-        if (isOpenProperty?.PropertyType != typeof(bool) || !isOpenProperty.CanWrite)
+        PropertyInfo? isOpenProperty =
+            picker.GetType().GetProperty("IsOpen");
+
+        if (isOpenProperty?.PropertyType != typeof(bool) ||
+            !isOpenProperty.CanWrite)
         {
             return false;
         }
 
         isOpenProperty.SetValue(picker, true);
+
         return true;
     }
 
+
     private void ApplySelectedDateTime()
     {
-        DateTime value = OverlayDatePicker.Date + OverlayTimePicker.Time;
+        DateTime value =
+            OverlayDatePicker.Date +
+            OverlayTimePicker.Time;
 
         // Редактирование времени уведомления
         if (editingNotification is not null)
@@ -209,10 +292,13 @@ public partial class ReminderEditorPage : ContentPage
             SortNotifications();
 
             NotificationTimesCollectionView.ItemsSource = null;
-            NotificationTimesCollectionView.ItemsSource = notificationTimes;
+            NotificationTimesCollectionView.ItemsSource =
+                notificationTimes;
 
             editingNotification = null;
+
             RequestAutoSave();
+
             return;
         }
 
@@ -225,7 +311,9 @@ public partial class ReminderEditorPage : ContentPage
         else
         {
             bool hadDisplayEnd = displayEnd is not null;
+
             displayEnd = value;
+
             if (!hadDisplayEnd)
             {
                 autoCompleteOnDisplayEnd = false;
@@ -234,13 +322,22 @@ public partial class ReminderEditorPage : ContentPage
 
         UpdateDisplayPeriodLabel();
         UpdateAutoCompleteControls();
+
         RequestAutoSave();
     }
 
-    private void OnReminderChanged(object? sender, TextChangedEventArgs e)
+
+    // ============================================================
+    // АВТОСОХРАНЕНИЕ / СОХРАНЕНИЕ
+    // ============================================================
+
+    private void OnReminderChanged(
+        object? sender,
+        TextChangedEventArgs e)
     {
         RequestAutoSave();
     }
+
 
     private void RequestSave()
     {
@@ -249,41 +346,62 @@ public partial class ReminderEditorPage : ContentPage
             return;
         }
 
-        string text = ReminderTextEditor.Text?.Trim() ?? string.Empty;
+        string text =
+            ReminderTextEditor.Text?.Trim() ?? string.Empty;
+
         if (string.IsNullOrWhiteSpace(text))
         {
             return;
         }
 
-        SaveRequested?.Invoke(this, new ReminderItem
-        {
-            Id = reminder?.Id ?? 0,
-            Text = text,
-            DisplayStart = displayStart,
-            DisplayEnd = displayEnd,
-            AutoCompleteOnDisplayEnd = autoCompleteOnDisplayEnd,
-            NotificationTimes = notificationTimes
-                .Select(x => x.Time)
-                .Order()
-                .ToList(),
-            NotificationTimeSettings = notificationTimes
-                .OrderBy(x => x.Time)
-                .Select(x => x.ToSettings())
-                .ToList(),
-        });
+        SaveRequested?.Invoke(
+            this,
+            new ReminderItem
+            {
+                Id = reminder?.Id ?? 0,
+
+                Text = text,
+
+                DisplayStart = displayStart,
+
+                DisplayEnd = displayEnd,
+
+                AutoCompleteOnDisplayEnd =
+                    autoCompleteOnDisplayEnd,
+
+                NotificationTimes = notificationTimes
+                    .Select(x => x.Time)
+                    .Order()
+                    .ToList(),
+
+                NotificationTimeSettings = notificationTimes
+                    .OrderBy(x => x.Time)
+                    .Select(x => x.ToSettings())
+                    .ToList(),
+            });
     }
+
 
     private void RequestAutoSave()
     {
-        if (!isAutoSaveEnabled || isInitializing)
+        if (!isAutoSaveEnabled ||
+            isInitializing)
+        {
             return;
+        }
 
         autoSaveCancellation?.Cancel();
-        autoSaveCancellation = new CancellationTokenSource();
-        _ = RequestAutoSaveAsync(autoSaveCancellation.Token);
+
+        autoSaveCancellation =
+            new CancellationTokenSource();
+
+        _ = RequestAutoSaveAsync(
+            autoSaveCancellation.Token);
     }
 
-    private async Task RequestAutoSaveAsync(CancellationToken token)
+
+    private async Task RequestAutoSaveAsync(
+        CancellationToken token)
     {
         try
         {
@@ -295,53 +413,82 @@ public partial class ReminderEditorPage : ContentPage
         }
 
         if (token.IsCancellationRequested)
+        {
             return;
+        }
 
-        string text = ReminderTextEditor.Text?.Trim() ?? string.Empty;
+        string text =
+            ReminderTextEditor.Text?.Trim() ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(text))
+        {
             return;
+        }
 
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            SaveRequested?.Invoke(this, new ReminderItem
-            {
-                Id = reminder?.Id ?? 0,
-                Text = text,
-                DisplayStart = displayStart,
-                DisplayEnd = displayEnd,
-                AutoCompleteOnDisplayEnd = autoCompleteOnDisplayEnd,
-                NotificationTimes = notificationTimes
-                    .Select(x => x.Time)
-                    .Order()
-                    .ToList(),
-                NotificationTimeSettings = notificationTimes
-                    .OrderBy(x => x.Time)
-                    .Select(x => x.ToSettings())
-                    .ToList()
-            });
+            SaveRequested?.Invoke(
+                this,
+                new ReminderItem
+                {
+                    Id = reminder?.Id ?? 0,
+
+                    Text = text,
+
+                    DisplayStart = displayStart,
+
+                    DisplayEnd = displayEnd,
+
+                    AutoCompleteOnDisplayEnd =
+                        autoCompleteOnDisplayEnd,
+
+                    NotificationTimes = notificationTimes
+                        .Select(x => x.Time)
+                        .Order()
+                        .ToList(),
+
+                    NotificationTimeSettings = notificationTimes
+                        .OrderBy(x => x.Time)
+                        .Select(x => x.ToSettings())
+                        .ToList()
+                });
         });
     }
 
+
     private bool isDeleting;
-    private async void OnDeleteClicked(object? sender, EventArgs e)
+
+
+    private async void OnDeleteClicked(
+        object? sender,
+        EventArgs e)
     {
         if (reminder is null)
+        {
             return;
+        }
 
         isDeleting = true;
 
-        DeleteRequested?.Invoke(this, EventArgs.Empty);
+        DeleteRequested?.Invoke(
+            this,
+            EventArgs.Empty);
 
         await Navigation.PopModalAsync();
     }
 
-    private async void OnSaveClicked(object? sender, EventArgs e)
+
+    private async void OnSaveClicked(
+        object? sender,
+        EventArgs e)
     {
         if (isInitializing)
+        {
             return;
+        }
 
-        string text = ReminderTextEditor.Text?.Trim() ?? string.Empty;
+        string text =
+            ReminderTextEditor.Text?.Trim() ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -356,64 +503,99 @@ public partial class ReminderEditorPage : ContentPage
         ReminderItem savedReminder = new()
         {
             Id = reminder?.Id ?? 0,
+
             Text = text,
+
             DisplayStart = displayStart,
+
             DisplayEnd = displayEnd,
-            AutoCompleteOnDisplayEnd = autoCompleteOnDisplayEnd,
+
+            AutoCompleteOnDisplayEnd =
+                autoCompleteOnDisplayEnd,
+
             NotificationTimes = notificationTimes
                 .Select(x => x.Time)
                 .Order()
                 .ToList(),
+
             NotificationTimeSettings = notificationTimes
                 .OrderBy(x => x.Time)
                 .Select(x => x.ToSettings())
                 .ToList()
         };
 
-        SaveRequested?.Invoke(this, savedReminder);
+        SaveRequested?.Invoke(
+            this,
+            savedReminder);
 
         isDeleting = true;
 
         await Navigation.PopModalAsync();
     }
 
-    private async void OnAddWeekNotificationClicked(object? sender, EventArgs e)
+
+    // ============================================================
+    // УВЕДОМЛЕНИЯ
+    // ============================================================
+
+    private async void OnAddWeekNotificationClicked(
+        object? sender,
+        EventArgs e)
     {
-        await AddNotificationTimeAsync(TimeSpan.FromDays(7));
+        await AddNotificationTimeAsync(
+            TimeSpan.FromDays(7));
     }
 
-    private async void OnAddDayNotificationClicked(object? sender, EventArgs e)
+
+    private async void OnAddDayNotificationClicked(
+        object? sender,
+        EventArgs e)
     {
-        await AddNotificationTimeAsync(TimeSpan.FromDays(1));
+        await AddNotificationTimeAsync(
+            TimeSpan.FromDays(1));
     }
 
-    private async void OnAddHourNotificationClicked(object? sender, EventArgs e)
+
+    private async void OnAddHourNotificationClicked(
+        object? sender,
+        EventArgs e)
     {
-        await AddNotificationTimeAsync(TimeSpan.FromHours(1));
+        await AddNotificationTimeAsync(
+            TimeSpan.FromHours(1));
     }
 
-    private async Task AddNotificationTimeAsync(TimeSpan offset)
+
+    private async Task AddNotificationTimeAsync(
+        TimeSpan offset)
     {
         DateTime? targetDateTime = null;
 
         if (StartRadioButton.IsChecked)
+        {
             targetDateTime = displayStart;
+        }
 
         if (EndRadioButton.IsChecked)
+        {
             targetDateTime = displayEnd;
+        }
 
         if (VarRadioButton.IsChecked)
-            targetDateTime = notificationTimes.Count > 0
-                ? notificationTimes.Min(x => x.Time)
-                : null;
+        {
+            targetDateTime =
+                notificationTimes.Count > 0
+                    ? notificationTimes.Min(x => x.Time)
+                    : null;
+        }
 
         if (targetDateTime is null)
         {
-            string targetName = StartRadioButton.IsChecked
-                ? "начала"
-                : EndRadioButton.IsChecked
-                    ? "конца"
-                    : "уведомления";
+            string targetName =
+                StartRadioButton.IsChecked
+                    ? "начала"
+                    : EndRadioButton.IsChecked
+                        ? "конца"
+                        : "уведомления";
 
             await DisplayAlert(
                 "Ошибка",
@@ -423,64 +605,96 @@ public partial class ReminderEditorPage : ContentPage
             return;
         }
 
-        AddNotificationTime(targetDateTime.Value - offset);
+        AddNotificationTime(
+            targetDateTime.Value - offset);
     }
 
-    private void OnNotificationTargetChanged(object? sender, CheckedChangedEventArgs e)
+
+    private void OnNotificationTargetChanged(
+        object? sender,
+        CheckedChangedEventArgs e)
     {
-        if (!e.Value || sender is not RadioButton radioButton)
+        if (!e.Value ||
+            sender is not RadioButton radioButton)
         {
             return;
         }
 
-        selectedBoundary = radioButton == EndRadioButton
-            ? DisplayBoundary.End
-            : DisplayBoundary.Start;
+        selectedBoundary =
+            radioButton == EndRadioButton
+                ? DisplayBoundary.End
+                : DisplayBoundary.Start;
     }
 
-    private void AddNotificationTime(DateTime notificationTime)
+
+    private void AddNotificationTime(
+        DateTime notificationTime)
     {
-        if (!notificationTimes.Any(x => x.Time == notificationTime))
+        if (!notificationTimes.Any(
+                x => x.Time == notificationTime))
         {
-            NotificationTimeItem item = new(notificationTime);
-            item.PropertyChanged += OnNotificationTimeItemChanged;
+            NotificationTimeItem item =
+                new(notificationTime);
+
+            item.PropertyChanged +=
+                OnNotificationTimeItemChanged;
+
             notificationTimes.Add(item);
+
             SortNotifications();
+
             RequestAutoSave();
         }
     }
 
-    private void OnDeleteNotificationClicked(object? sender, EventArgs e)
+
+    private void OnDeleteNotificationClicked(
+        object? sender,
+        EventArgs e)
     {
         if (sender is Button button &&
             button.CommandParameter is NotificationTimeItem item)
         {
-            item.PropertyChanged -= OnNotificationTimeItemChanged;
+            item.PropertyChanged -=
+                OnNotificationTimeItemChanged;
+
             notificationTimes.Remove(item);
+
             RequestAutoSave();
         }
     }
 
-    private void OnNotificationTimeTapped(object? sender, TappedEventArgs e)
+
+    private void OnNotificationTimeTapped(
+        object? sender,
+        TappedEventArgs e)
     {
         if (sender is Label label &&
             label.BindingContext is NotificationTimeItem item)
         {
             editingNotification = item;
 
-            ShowDateTimePicker(item.Time, item.Time.TimeOfDay);
+            ShowDateTimePicker(
+                item.Time,
+                item.Time.TimeOfDay);
         }
     }
 
-    private void OnNotificationTimeItemChanged(object? sender, PropertyChangedEventArgs e)
+
+    private void OnNotificationTimeItemChanged(
+        object? sender,
+        PropertyChangedEventArgs e)
     {
         RequestAutoSave();
     }
 
+
     private void SortNotifications()
     {
         List<NotificationTimeItem> sorted =
-            notificationTimes.OrderBy(x => x.Time).ToList();
+            notificationTimes
+                .OrderBy(x => x.Time)
+                .ToList();
 
         notificationTimes.Clear();
 
@@ -490,7 +704,14 @@ public partial class ReminderEditorPage : ContentPage
         }
     }
 
-    private void OnAutoCompleteChanged(object? sender, CheckedChangedEventArgs e)
+
+    // ============================================================
+    // АВТОЗАВЕРШЕНИЕ
+    // ============================================================
+
+    private void OnAutoCompleteChanged(
+        object? sender,
+        CheckedChangedEventArgs e)
     {
         if (isInitializing)
         {
@@ -498,30 +719,52 @@ public partial class ReminderEditorPage : ContentPage
         }
 
         autoCompleteOnDisplayEnd = e.Value;
+
         RequestAutoSave();
     }
 
+
     private void UpdateAutoCompleteControls()
     {
-        bool hasDisplayEnd = displayEnd is not null;
-        bool hasDisplayStart = displayStart is not null;
+        bool hasDisplayEnd =
+            displayEnd is not null;
 
-        AutoCompleteCheckBox.IsVisible = hasDisplayEnd;
-        AutoCompleteLabel.IsVisible = hasDisplayEnd;
-        DisplayPeriodGrid.IsVisible = hasDisplayEnd || hasDisplayStart;
+        bool hasDisplayStart =
+            displayStart is not null;
+
+        AutoCompleteCheckBox.IsVisible =
+            hasDisplayEnd;
+
+        AutoCompleteLabel.IsVisible =
+            hasDisplayEnd;
+
+        DisplayPeriodGrid.IsVisible =
+            hasDisplayEnd ||
+            hasDisplayStart;
 
         if (!hasDisplayEnd)
         {
             autoCompleteOnDisplayEnd = false;
         }
 
-        AutoCompleteCheckBox.IsChecked = hasDisplayEnd && autoCompleteOnDisplayEnd;
+        AutoCompleteCheckBox.IsChecked =
+            hasDisplayEnd &&
+            autoCompleteOnDisplayEnd;
     }
 
-    private void UpdateDisplayPeriodLabel()  
+
+    private void UpdateDisplayPeriodLabel()
     {
-        DisplayPeriodLabel.Text = ReminderDisplayFormatter.GetDisplayText(displayStart, displayEnd);
+        DisplayPeriodLabel.Text =
+            ReminderDisplayFormatter.GetDisplayText(
+                displayStart,
+                displayEnd);
     }
+
+
+    // ============================================================
+    // ЖИЗНЕННЫЙ ЦИКЛ
+    // ============================================================
 
     protected override void OnDisappearing()
     {
@@ -529,39 +772,571 @@ public partial class ReminderEditorPage : ContentPage
 
         autoSaveCancellation?.Cancel();
 
+        daysSnapCancellation?.Cancel();
+        hoursSnapCancellation?.Cancel();
+        minutesSnapCancellation?.Cancel();
+
         if (!isDeleting)
         {
             RequestSave();
         }
     }
 
-    private async void settime900(object? sender, EventArgs e)
+
+    // ============================================================
+    // БЫСТРЫЕ КНОПКИ ВРЕМЕНИ
+    // ============================================================
+
+    private void settime900(
+        object? sender,
+        EventArgs e)
     {
-        OverlayTimePicker.Time = new TimeSpan(9, 0, 0);
+        OverlayTimePicker.Time =
+            new TimeSpan(9, 0, 0);
     }
 
-    private async void settime2100(object? sender, EventArgs e)
+
+    private void settime2100(
+        object? sender,
+        EventArgs e)
     {
-        OverlayTimePicker.Time = new TimeSpan(21, 0, 0);
+        OverlayTimePicker.Time =
+            new TimeSpan(21, 0, 0);
     }
 
-    private async void settime1500(object? sender, EventArgs e)
+
+    private void settime1500(
+        object? sender,
+        EventArgs e)
     {
-        OverlayTimePicker.Time = new TimeSpan(15, 0, 0);
+        OverlayTimePicker.Time =
+            new TimeSpan(15, 0, 0);
     }
 
-    private async void settime300(object? sender, EventArgs e)
+
+    private void settime300(
+        object? sender,
+        EventArgs e)
     {
-        OverlayTimePicker.Time = new TimeSpan(3, 0, 0);
+        OverlayTimePicker.Time =
+            new TimeSpan(3, 0, 0);
     }
 
-    private async void add1day(object? sender, EventArgs e)
+
+    private void add1day(
+        object? sender,
+        EventArgs e)
     {
-        OverlayDatePicker.Date = OverlayDatePicker.Date.AddDays(1);
+        OverlayDatePicker.Date =
+            OverlayDatePicker.Date.AddDays(1);
     }
 
-    private async void rem1day(object? sender, EventArgs e)
+
+    private void rem1day(
+        object? sender,
+        EventArgs e)
     {
-        OverlayDatePicker.Date = OverlayDatePicker.Date.AddDays(-1);
+        OverlayDatePicker.Date =
+            OverlayDatePicker.Date.AddDays(-1);
+    }
+
+
+    // ============================================================
+    // ТАЙМЕР
+    // ============================================================
+
+    private void InitializeTimerWheels()
+    {
+        CreateWheel(
+            DaysWheelLayout,
+            100);
+
+        CreateWheel(
+            HoursWheelLayout,
+            24);
+
+        CreateWheel(
+            MinutesWheelLayout,
+            60);
+
+        UpdateWheelVisuals(
+            DaysWheelLayout,
+            timerDays);
+
+        UpdateWheelVisuals(
+            HoursWheelLayout,
+            timerHours);
+
+        UpdateWheelVisuals(
+            MinutesWheelLayout,
+            timerMinutes);
+    }
+
+
+    private static void CreateWheel(
+        VerticalStackLayout layout,
+        int count)
+    {
+        // Верхнее пустое пространство.
+        // Благодаря ему первый элемент тоже может оказаться
+        // точно в центре колеса.
+
+        layout.Children.Add(
+            new BoxView
+            {
+                HeightRequest = TimerWheelTopPadding,
+                InputTransparent = true
+            });
+
+
+        for (int i = 0; i < count; i++)
+        {
+            Label label = new()
+            {
+                Text = i.ToString("00"),
+
+                HeightRequest =
+                    TimerWheelItemHeight,
+
+                FontSize = 34,
+
+                HorizontalTextAlignment =
+                    TextAlignment.Center,
+
+                VerticalTextAlignment =
+                    TextAlignment.Center,
+
+                TextColor =
+                    Color.FromArgb("#646D77"),
+
+                InputTransparent = true
+            };
+
+            layout.Children.Add(label);
+        }
+
+
+        // Нижнее пустое пространство.
+
+        layout.Children.Add(
+            new BoxView
+            {
+                HeightRequest = TimerWheelTopPadding,
+                InputTransparent = true
+            });
+    }
+
+
+    private static int GetSelectedWheelIndex(
+        double scrollY,
+        int count)
+    {
+        int index =
+            (int)Math.Round(
+                scrollY / TimerWheelItemHeight);
+
+        return Math.Clamp(
+            index,
+            0,
+            count - 1);
+    }
+
+
+    private void UpdateWheelVisuals(
+        VerticalStackLayout layout,
+        int selectedIndex)
+    {
+        for (int i = 0;
+             i < layout.Children.Count;
+             i++)
+        {
+            if (layout.Children[i] is not Label label)
+            {
+                continue;
+            }
+
+            // Первый элемент StackLayout — верхний spacer.
+            int valueIndex = i - 1;
+
+            if (valueIndex < 0)
+            {
+                continue;
+            }
+
+            double distance =
+                Math.Abs(
+                    valueIndex - selectedIndex);
+
+
+            if (valueIndex == selectedIndex)
+            {
+                label.FontSize = 38;
+
+                label.FontAttributes =
+                    FontAttributes.Bold;
+
+                label.TextColor =
+                    Colors.White;
+
+                label.Opacity = 1.0;
+            }
+            else if (distance == 1)
+            {
+                label.FontSize = 34;
+
+                label.FontAttributes =
+                    FontAttributes.None;
+
+                label.TextColor =
+                    Color.FromArgb("#737C86");
+
+                label.Opacity = 0.9;
+            }
+            else if (distance == 2)
+            {
+                label.FontSize = 30;
+
+                label.FontAttributes =
+                    FontAttributes.None;
+
+                label.TextColor =
+                    Color.FromArgb("#525A63");
+
+                label.Opacity = 0.65;
+            }
+            else
+            {
+                label.FontSize = 28;
+
+                label.FontAttributes =
+                    FontAttributes.None;
+
+                label.TextColor =
+                    Color.FromArgb("#414850");
+
+                label.Opacity = 0.35;
+            }
+        }
+    }
+
+
+    // ============================================================
+    // ПРОКРУТКА ДНЕЙ
+    // ============================================================
+
+    private void OnDaysWheelScrolled(
+        object? sender,
+        ScrolledEventArgs e)
+    {
+        pendingTimerDays =
+            GetSelectedWheelIndex(
+                e.ScrollY,
+                100);
+
+        UpdateWheelVisuals(
+            DaysWheelLayout,
+            pendingTimerDays);
+
+        if (!isTimerWheelProgrammaticScroll)
+        {
+            ScheduleDaysSnap();
+        }
+    }
+
+
+    // ============================================================
+    // ПРОКРУТКА ЧАСОВ
+    // ============================================================
+
+    private void OnHoursWheelScrolled(
+        object? sender,
+        ScrolledEventArgs e)
+    {
+        pendingTimerHours =
+            GetSelectedWheelIndex(
+                e.ScrollY,
+                24);
+
+        UpdateWheelVisuals(
+            HoursWheelLayout,
+            pendingTimerHours);
+
+        if (!isTimerWheelProgrammaticScroll)
+        {
+            ScheduleHoursSnap();
+        }
+    }
+
+
+    // ============================================================
+    // ПРОКРУТКА МИНУТ
+    // ============================================================
+
+    private void OnMinutesWheelScrolled(
+        object? sender,
+        ScrolledEventArgs e)
+    {
+        pendingTimerMinutes =
+            GetSelectedWheelIndex(
+                e.ScrollY,
+                60);
+
+        UpdateWheelVisuals(
+            MinutesWheelLayout,
+            pendingTimerMinutes);
+
+        if (!isTimerWheelProgrammaticScroll)
+        {
+            ScheduleMinutesSnap();
+        }
+    }
+
+
+    // ============================================================
+    // SNAP ДНЕЙ
+    // ============================================================
+
+    private void ScheduleDaysSnap()
+    {
+        daysSnapCancellation?.Cancel();
+
+        daysSnapCancellation =
+            new CancellationTokenSource();
+
+        _ = SnapDaysAsync(
+            daysSnapCancellation.Token);
+    }
+
+
+    private async Task SnapDaysAsync(
+        CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(
+                120,
+                token);
+
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await SnapWheelAsync(
+                DaysWheel,
+                pendingTimerDays,
+                token);
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+
+    // ============================================================
+    // SNAP ЧАСОВ
+    // ============================================================
+
+    private void ScheduleHoursSnap()
+    {
+        hoursSnapCancellation?.Cancel();
+
+        hoursSnapCancellation =
+            new CancellationTokenSource();
+
+        _ = SnapHoursAsync(
+            hoursSnapCancellation.Token);
+    }
+
+
+    private async Task SnapHoursAsync(
+        CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(
+                120,
+                token);
+
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await SnapWheelAsync(
+                HoursWheel,
+                pendingTimerHours,
+                token);
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+
+    // ============================================================
+    // SNAP МИНУТ
+    // ============================================================
+
+    private void ScheduleMinutesSnap()
+    {
+        minutesSnapCancellation?.Cancel();
+
+        minutesSnapCancellation =
+            new CancellationTokenSource();
+
+        _ = SnapMinutesAsync(
+            minutesSnapCancellation.Token);
+    }
+
+
+    private async Task SnapMinutesAsync(
+        CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(
+                120,
+                token);
+
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await SnapWheelAsync(
+                MinutesWheel,
+                pendingTimerMinutes,
+                token);
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+
+    // ============================================================
+    // ОБЩИЙ SNAP
+    // ============================================================
+
+    private async Task SnapWheelAsync(
+        ScrollView wheel,
+        int index,
+        CancellationToken token)
+    {
+        if (token.IsCancellationRequested)
+        {
+            return;
+        }
+
+        double targetY =
+            index * TimerWheelItemHeight;
+
+        isTimerWheelProgrammaticScroll = true;
+
+        try
+        {
+            await wheel.ScrollToAsync(
+                0,
+                targetY,
+                true);
+        }
+        finally
+        {
+            isTimerWheelProgrammaticScroll = false;
+        }
+    }
+
+
+    // ============================================================
+    // ОТКРЫТИЕ ВЫБОРА ТАЙМЕРА
+    // ============================================================
+
+    private async void OnTimerDisplayTapped(
+        object? sender,
+        TappedEventArgs e)
+    {
+        pendingTimerDays = timerDays;
+        pendingTimerHours = timerHours;
+        pendingTimerMinutes = timerMinutes;
+
+        TimerDurationOverlay.IsVisible = true;
+
+        await Task.Delay(50);
+
+        isTimerWheelProgrammaticScroll = true;
+
+        try
+        {
+            await DaysWheel.ScrollToAsync(
+                0,
+                pendingTimerDays *
+                    TimerWheelItemHeight,
+                false);
+
+            await HoursWheel.ScrollToAsync(
+                0,
+                pendingTimerHours *
+                    TimerWheelItemHeight,
+                false);
+
+            await MinutesWheel.ScrollToAsync(
+                0,
+                pendingTimerMinutes *
+                    TimerWheelItemHeight,
+                false);
+        }
+        finally
+        {
+            isTimerWheelProgrammaticScroll = false;
+        }
+
+        UpdateWheelVisuals(
+            DaysWheelLayout,
+            pendingTimerDays);
+
+        UpdateWheelVisuals(
+            HoursWheelLayout,
+            pendingTimerHours);
+
+        UpdateWheelVisuals(
+            MinutesWheelLayout,
+            pendingTimerMinutes);
+    }
+
+
+    // ============================================================
+    // СОХРАНЕНИЕ ТАЙМЕРА
+    // ============================================================
+
+    private void OnSaveTimerClicked(
+        object? sender,
+        EventArgs e)
+    {
+        timerDays =
+            pendingTimerDays;
+
+        timerHours =
+            pendingTimerHours;
+
+        timerMinutes =
+            pendingTimerMinutes;
+
+        UpdateTimerDisplay();
+
+        TimerDurationOverlay.IsVisible = false;
+    }
+
+
+    private void UpdateTimerDisplay()
+    {
+        TimerDaysDisplayLabel.Text =
+            timerDays.ToString("00");
+
+        TimerHoursDisplayLabel.Text =
+            timerHours.ToString("00");
+
+        TimerMinutesDisplayLabel.Text =
+            timerMinutes.ToString("00");
     }
 }

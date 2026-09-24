@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8" ?>
+
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:Reminder"
@@ -10,6 +11,7 @@
           RowSpacing="0">
 
         <ScrollView Grid.Row="0">
+
             <VerticalStackLayout Spacing="12">
 
                 <Grid x:Name="DisplayPeriodGrid"
@@ -22,12 +24,12 @@
                            FontAttributes="Bold"
                            LineBreakMode="WordWrap"
                            VerticalTextAlignment="Center"
-                           MinimumHeightRequest="40"/>
+                           MinimumHeightRequest="40" />
 
                     <CheckBox x:Name="AutoCompleteCheckBox"
                               Grid.Column="1"
                               IsVisible="False"
-                              CheckedChanged="OnAutoCompleteChanged"/>
+                              CheckedChanged="OnAutoCompleteChanged" />
 
                     <Label x:Name="AutoCompleteLabel"
                            Grid.Column="2"
@@ -35,6 +37,7 @@
                            Text="Завершить"
                            IsVisible="False"
                            VerticalTextAlignment="Center" />
+
                     <!-- автозавершение -->
 
                 </Grid>
@@ -123,27 +126,29 @@
 
                 </Grid>
 
-                    <Grid ColumnDefinitions="*,*,*"
-                          ColumnSpacing="8">
 
-                        <Button Text="За Неделю"
-                                Clicked="OnAddWeekNotificationClicked" />
+                <Grid ColumnDefinitions="*,*,*"
+                      ColumnSpacing="8">
 
-                        <Button Grid.Column="1"
-                                Text="За День"
-                                Clicked="OnAddDayNotificationClicked" />
+                    <Button Text="За Неделю"
+                            Clicked="OnAddWeekNotificationClicked" />
 
-                        <Button Grid.Column="2"
-                                Text="За Час"
-                                Clicked="OnAddHourNotificationClicked" />
+                    <Button Grid.Column="1"
+                            Text="За День"
+                            Clicked="OnAddDayNotificationClicked" />
 
-                    </Grid>
+                    <Button Grid.Column="2"
+                            Text="За Час"
+                            Clicked="OnAddHourNotificationClicked" />
+
+                </Grid>
 
 
-                    <CollectionView x:Name="NotificationTimesCollectionView"
+                <CollectionView x:Name="NotificationTimesCollectionView"
                                 EmptyView="Оповещения не добавлены">
 
                     <CollectionView.ItemTemplate>
+
                         <DataTemplate>
 
                             <Border Margin="0,0,0,8"
@@ -157,9 +162,11 @@
                                            VerticalOptions="Center">
 
                                         <Label.GestureRecognizers>
+
                                             <TapGestureRecognizer
                                                 Tapped="OnNotificationTimeTapped"
                                                 CommandParameter="{Binding .}" />
+
                                         </Label.GestureRecognizers>
 
                                     </Label>
@@ -169,18 +176,18 @@
                                             CommandParameter="{Binding .}"
                                             HeightRequest="30"
                                             WidthRequest="30"
-                                            Clicked="OnDeleteNotificationClicked"/>
+                                            Clicked="OnDeleteNotificationClicked" />
 
                                     <CheckBox Grid.Column="2"
-                                              IsChecked="{Binding IsPushEnabled, Mode=TwoWay}"/>
+                                              IsChecked="{Binding IsPushEnabled, Mode=TwoWay}" />
                                     <!-- пуш уведомление -->
 
                                     <CheckBox Grid.Column="3"
-                                              IsChecked="{Binding IsOverlayEnabled, Mode=TwoWay}"/>
+                                              IsChecked="{Binding IsOverlayEnabled, Mode=TwoWay}" />
                                     <!-- Overlay уведомление / сообщение на экране -->
 
                                     <CheckBox Grid.Column="4"
-                                              IsChecked="{Binding IsAlarmEnabled, Mode=TwoWay}"/>
+                                              IsChecked="{Binding IsAlarmEnabled, Mode=TwoWay}" />
                                     <!-- будильник -->
 
                                 </Grid>
@@ -188,11 +195,13 @@
                             </Border>
 
                         </DataTemplate>
+
                     </CollectionView.ItemTemplate>
 
                 </CollectionView>
 
             </VerticalStackLayout>
+
         </ScrollView>
 
 
@@ -206,7 +215,7 @@
                 Text="Завершить"
                 BackgroundColor="#B00020"
                 TextColor="White"
-                Clicked="OnDeleteClicked"/>
+                Clicked="OnDeleteClicked" />
 
 
         <Button x:Name="SaveButton"
@@ -218,10 +227,13 @@
                 Grid.Row="0"
                 Text="Сохранить"
                 TextColor="Black"
-                Clicked="OnSaveClicked"/>
+                Clicked="OnSaveClicked" />
 
 
-        <!-- Затемнение и окно выбора даты/времени -->
+        <!-- ========================================================== -->
+        <!-- ОКНО ВЫБОРА ДАТЫ / ВРЕМЕНИ                                  -->
+        <!-- ========================================================== -->
+
         <Grid x:Name="DateTimePickerOverlay"
               Grid.RowSpan="2"
               Padding="16"
@@ -236,18 +248,122 @@
                     BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#111820}"
                     Stroke="{AppThemeBinding Light=#E7E2F2, Dark=#26313D}">
 
-                <Grid RowDefinitions="Auto,Auto,Auto,Auto"
-                      RowSpacing="22">
+                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto"
+                      RowSpacing="18">
 
-                    <Label x:Name="DateTimeOverlayTitle"
-                           Text="Select date &amp; time"
-                           FontAttributes="Bold"
-                           FontSize="22" />
-
-
-                    <!-- Выбор даты и времени -->
+                    <!-- ================================================== -->
+                    <!-- ТАЙМЕР                                             -->
+                    <!-- ================================================== -->
 
                     <Border Grid.Row="1"
+                            x:Name="TimerDisplayBorder"
+                            Padding="18,14"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 18"
+                            BackgroundColor="{AppThemeBinding Light=#EEF2F7, Dark=#202831}">
+
+                        <Grid RowDefinitions="Auto,Auto">
+
+                            <Grid ColumnDefinitions="*,Auto,*,Auto,*"
+                                  ColumnSpacing="0">
+
+                                <!-- ДНИ -->
+
+                                <Label x:Name="TimerDaysDisplayLabel"
+                                       Grid.Column="0"
+                                       Text="00"
+                                       FontSize="34"
+                                       FontAttributes="Bold"
+                                       HorizontalTextAlignment="Center"
+                                       TextColor="{AppThemeBinding Light=#20242A, Dark=#FFFFFF}" />
+
+                                <Label Grid.Column="1"
+                                       Text=":"
+                                       FontSize="28"
+                                       FontAttributes="Bold"
+                                       VerticalTextAlignment="Center"
+                                       TextColor="{AppThemeBinding Light=#9AA1AA, Dark=#707983}" />
+
+
+                                <!-- ЧАСЫ -->
+
+                                <Label x:Name="TimerHoursDisplayLabel"
+                                       Grid.Column="2"
+                                       Text="00"
+                                       FontSize="34"
+                                       FontAttributes="Bold"
+                                       HorizontalTextAlignment="Center"
+                                       TextColor="{AppThemeBinding Light=#20242A, Dark=#FFFFFF}" />
+
+                                <Label Grid.Column="3"
+                                       Text=":"
+                                       FontSize="28"
+                                       FontAttributes="Bold"
+                                       VerticalTextAlignment="Center"
+                                       TextColor="{AppThemeBinding Light=#9AA1AA, Dark=#707983}" />
+
+
+                                <!-- МИНУТЫ -->
+
+                                <Label x:Name="TimerMinutesDisplayLabel"
+                                       Grid.Column="4"
+                                       Text="00"
+                                       FontSize="34"
+                                       FontAttributes="Bold"
+                                       HorizontalTextAlignment="Center"
+                                       TextColor="{AppThemeBinding Light=#20242A, Dark=#FFFFFF}" />
+
+                            </Grid>
+
+
+                            <Grid Grid.Row="1"
+                                  ColumnDefinitions="*,*,*"
+                                  Margin="0,-2,0,0">
+
+                                <Label Grid.Column="0"
+                                       Text="ДНИ"
+                                       FontSize="9"
+                                       FontAttributes="Bold"
+                                       CharacterSpacing="1.5"
+                                       HorizontalTextAlignment="Center"
+                                       TextColor="{AppThemeBinding Light=#7A818A, Dark=#AAB2BC}" />
+
+                                <Label Grid.Column="1"
+                                       Text="ЧАСЫ"
+                                       FontSize="9"
+                                       FontAttributes="Bold"
+                                       CharacterSpacing="1.5"
+                                       HorizontalTextAlignment="Center"
+                                       TextColor="{AppThemeBinding Light=#7A818A, Dark=#AAB2BC}" />
+
+                                <Label Grid.Column="2"
+                                       Text="МИНУТЫ"
+                                       FontSize="9"
+                                       FontAttributes="Bold"
+                                       CharacterSpacing="1.5"
+                                       HorizontalTextAlignment="Center"
+                                       TextColor="{AppThemeBinding Light=#7A818A, Dark=#AAB2BC}" />
+
+                            </Grid>
+
+                        </Grid>
+
+
+                        <Border.GestureRecognizers>
+
+                            <TapGestureRecognizer
+                                Tapped="OnTimerDisplayTapped" />
+
+                        </Border.GestureRecognizers>
+
+                    </Border>
+
+
+                    <!-- ================================================== -->
+                    <!-- ВЫБОР ДАТЫ И ВРЕМЕНИ                                -->
+                    <!-- ================================================== -->
+
+                    <Border Grid.Row="2"
                             StrokeThickness="0"
                             StrokeShape="RoundRectangle 18"
                             BackgroundColor="{AppThemeBinding Light=#EBEEF3, Dark=#4A5056}">
@@ -289,7 +405,10 @@
                                             BackgroundColor="Transparent" />
 
                                 <Grid.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnDateRowTapped" />
+
+                                    <TapGestureRecognizer
+                                        Tapped="OnDateRowTapped" />
+
                                 </Grid.GestureRecognizers>
 
                             </Grid>
@@ -336,7 +455,10 @@
                                             BackgroundColor="Transparent" />
 
                                 <Grid.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnTimeRowTapped" />
+
+                                    <TapGestureRecognizer
+                                        Tapped="OnTimeRowTapped" />
+
                                 </Grid.GestureRecognizers>
 
                             </Grid>
@@ -346,9 +468,11 @@
                     </Border>
 
 
-                    <!-- Быстрое изменение даты -->
+                    <!-- ================================================== -->
+                    <!-- БЫСТРОЕ ИЗМЕНЕНИЕ ДАТЫ                              -->
+                    <!-- ================================================== -->
 
-                    <Grid Grid.Row="2"
+                    <Grid Grid.Row="3"
                           ColumnDefinitions="*,*"
                           RowDefinitions="Auto,Auto"
                           ColumnSpacing="10"
@@ -369,11 +493,11 @@
 
                                 <Button Grid.Column="0"
                                         Text="-1 День"
-                                        Clicked="rem1day"/>
+                                        Clicked="rem1day" />
 
                                 <Button Grid.Column="1"
                                         Text="+1 День"
-                                        Clicked="add1day"/>
+                                        Clicked="add1day" />
 
                             </Grid>
 
@@ -398,22 +522,22 @@
                                 <Button Grid.Row="0"
                                         Grid.Column="0"
                                         Text="Утро 9:00"
-                                        Clicked="settime900"/>
+                                        Clicked="settime900" />
 
                                 <Button Grid.Row="0"
                                         Grid.Column="1"
                                         Text="Вечер 21:00"
-                                        Clicked="settime2100"/>
+                                        Clicked="settime2100" />
 
                                 <Button Grid.Row="1"
                                         Grid.Column="0"
                                         Text="День 15:00"
-                                        Clicked="settime1500"/>
+                                        Clicked="settime1500" />
 
                                 <Button Grid.Row="1"
                                         Grid.Column="1"
                                         Text="Ночь 3:00"
-                                        Clicked="settime300"/>
+                                        Clicked="settime300" />
 
                             </Grid>
 
@@ -422,23 +546,192 @@
                     </Grid>
 
 
-                    <!-- Кнопки отмены/сохранения -->
+                    <!-- ================================================== -->
+                    <!-- КНОПКИ ДАТЫ / ВРЕМЕНИ                               -->
+                    <!-- ================================================== -->
 
-                    <HorizontalStackLayout Grid.Row="3"
+                    <HorizontalStackLayout Grid.Row="4"
                                            HorizontalOptions="End"
                                            Spacing="24">
+
+                        <Button Text="Сброс"
+                                BackgroundColor="Transparent"
+                                TextColor="White" />
 
                         <Button Text="Отмена"
                                 BackgroundColor="Transparent"
                                 Clicked="OnCancelDateTimeClicked"
-                                TextColor="White"/>
+                                TextColor="White" />
 
-                        <Button Text="Save"
+                        <Button Text="ОК"
                                 BackgroundColor="Transparent"
                                 Clicked="OnSaveDateTimeClicked"
-                                TextColor="White"/>
+                                TextColor="White" />
 
                     </HorizontalStackLayout>
+
+
+                    <!-- ================================================== -->
+                    <!-- ОКНО ВЫБОРА ДЛИТЕЛЬНОСТИ ТАЙМЕРА                    -->
+                    <!-- ================================================== -->
+
+                    <Grid x:Name="TimerDurationOverlay"
+                          Grid.RowSpan="5"
+                          Padding="16"
+                          BackgroundColor="#99000000"
+                          IsVisible="False"
+                          ZIndex="100">
+
+                        <Border Padding="24,22"
+                                MaximumWidthRequest="560"
+                                VerticalOptions="Center"
+                                HorizontalOptions="Fill"
+                                StrokeShape="RoundRectangle 24"
+                                BackgroundColor="{AppThemeBinding Light=#F4F5F7, Dark=#151A20}"
+                                Stroke="{AppThemeBinding Light=#E0E3E8, Dark=#29313A}">
+
+                            <Grid RowDefinitions="Auto,Auto,Auto"
+                                  RowSpacing="18">
+
+                                <!-- Заголовок -->
+
+                                <Label Grid.Row="0"
+                                       Text="Установить таймер"
+                                       FontAttributes="Bold"
+                                       FontSize="22"
+                                       HorizontalOptions="Center" />
+
+
+                                <!-- ================================================== -->
+                                <!-- КОЛЁСА                                            -->
+                                <!-- ================================================== -->
+
+                                <Grid Grid.Row="1"
+                                      HeightRequest="240"
+                                      ColumnDefinitions="*,Auto,*,Auto,*"
+                                      ColumnSpacing="4">
+
+                                    <!-- ================= ДНИ ================= -->
+
+                                    <Grid Grid.Column="0">
+
+                                        <ScrollView x:Name="DaysWheel"
+                                                    Orientation="Vertical"
+                                                    VerticalScrollBarVisibility="Never"
+                                                    Scrolled="OnDaysWheelScrolled">
+
+                                            <VerticalStackLayout x:Name="DaysWheelLayout"
+                                                                 Spacing="0" />
+
+                                        </ScrollView>
+
+                                    </Grid>
+
+
+                                    <!-- Разделитель -->
+
+                                    <Label Grid.Column="1"
+                                           Text=":"
+                                           FontSize="30"
+                                           FontAttributes="Bold"
+                                           VerticalOptions="Center"
+                                           HorizontalTextAlignment="Center"
+                                           TextColor="{AppThemeBinding Light=#858B93, Dark=#7A828C}" />
+
+
+                                    <!-- ================= ЧАСЫ ================= -->
+
+                                    <Grid Grid.Column="2">
+
+                                        <ScrollView x:Name="HoursWheel"
+                                                    Orientation="Vertical"
+                                                    VerticalScrollBarVisibility="Never"
+                                                    Scrolled="OnHoursWheelScrolled">
+
+                                            <VerticalStackLayout x:Name="HoursWheelLayout"
+                                                                 Spacing="0" />
+
+                                        </ScrollView>
+
+                                    </Grid>
+
+
+                                    <!-- Разделитель -->
+
+                                    <Label Grid.Column="3"
+                                           Text=":"
+                                           FontSize="30"
+                                           FontAttributes="Bold"
+                                           VerticalOptions="Center"
+                                           HorizontalTextAlignment="Center"
+                                           TextColor="{AppThemeBinding Light=#858B93, Dark=#7A828C}" />
+
+
+                                    <!-- ================= МИНУТЫ ================= -->
+
+                                    <Grid Grid.Column="4">
+
+                                        <ScrollView x:Name="MinutesWheel"
+                                                    Orientation="Vertical"
+                                                    VerticalScrollBarVisibility="Never"
+                                                    Scrolled="OnMinutesWheelScrolled">
+
+                                            <VerticalStackLayout x:Name="MinutesWheelLayout"
+                                                                 Spacing="0" />
+
+                                        </ScrollView>
+
+                                    </Grid>
+
+
+                                    <!-- ================================================== -->
+                                    <!-- ЦЕНТРАЛЬНАЯ ОБЛАСТЬ                             -->
+                                    <!-- ================================================== -->
+
+                                    <Grid Grid.ColumnSpan="5"
+                                          InputTransparent="True">
+
+                                        <Border HeightRequest="60"
+                                                VerticalOptions="Center"
+                                                StrokeThickness="1"
+                                                Stroke="{AppThemeBinding Light=#444C55, Dark=#3A434D}"
+                                                BackgroundColor="Transparent"
+                                                StrokeShape="RoundRectangle 3" />
+
+                                        <!-- Верхняя граница -->
+
+                                        <BoxView HeightRequest="1"
+                                                 VerticalOptions="Center"
+                                                 Margin="0,-30,0,0"
+                                                 BackgroundColor="{AppThemeBinding Light=#555E68, Dark=#4A535E}" />
+
+                                        <!-- Нижняя граница -->
+
+                                        <BoxView HeightRequest="1"
+                                                 VerticalOptions="Center"
+                                                 Margin="0,30,0,0"
+                                                 BackgroundColor="{AppThemeBinding Light=#555E68, Dark=#4A535E}" />
+
+                                    </Grid>
+
+                                </Grid>
+
+
+                                <!-- ================================================== -->
+                                <!-- ЕДИНСТВЕННАЯ КНОПКА                            -->
+                                <!-- ================================================== -->
+
+                                <Button Grid.Row="2"
+                                        Text="ОК"
+                                        BackgroundColor="Transparent"
+                                        HorizontalOptions="End"
+                                        Clicked="OnSaveTimerClicked" />
+
+                            </Grid>
+
+                        </Border>
+
+                    </Grid>
 
                 </Grid>
 
