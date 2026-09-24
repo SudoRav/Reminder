@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Reminder;
@@ -12,6 +14,7 @@ public partial class MainPage : ContentPage
     private readonly SemaphoreSlim editorNavigationSemaphore = new(1, 1);
     private int? openEditorReminderId;
     private readonly IDispatcherTimer autoCompleteTimer;
+    private bool isSortingReminders;
 
     public MainPage()
     {
@@ -22,6 +25,7 @@ public partial class MainPage : ContentPage
             ?? throw new InvalidOperationException("Notification service is not registered.");
 
         reminders = new ObservableCollection<ReminderItem>(OrderReminders(store.Load(), DateTime.Now));
+        SubscribeToReminderChanges();
         completedReminders = new ObservableCollection<ReminderItem>(store.LoadCompleted());
         RemindersCollectionView.ItemsSource = reminders;
         SubscribeToNotificationCompletion();
@@ -177,6 +181,7 @@ public partial class MainPage : ContentPage
     private void CompleteExpiredAutoCompleteReminders()
     {
         DateTime now = DateTime.Now;
+        SortReminders();
         List<int> expiredReminderIds = reminders
             .Where(reminder =>
                 reminder.AutoCompleteOnDisplayEnd &&
@@ -213,10 +218,20 @@ public partial class MainPage : ContentPage
 
     private void ReloadReminders()
     {
-        reminders.Clear();
-        foreach (ReminderItem reminder in store.Load())
+        UnsubscribeFromReminderChanges();
+        try
         {
-            reminders.Add(reminder);
+            isSortingReminders = true;
+            reminders.Clear();
+            foreach (ReminderItem reminder in store.Load())
+            {
+                reminders.Add(reminder);
+            }
+        }
+        finally
+        {
+            isSortingReminders = false;
+            SubscribeToReminderChanges();
         }
 
         SortReminders();
@@ -297,10 +312,21 @@ public partial class MainPage : ContentPage
             return;
         }
 
-        reminders.Clear();
-        foreach (ReminderItem reminder in sortedReminders)
+        isSortingReminders = true;
+        try
         {
-            reminders.Add(reminder);
+            for (int targetIndex = 0; targetIndex < sortedReminders.Count; targetIndex++)
+            {
+                int currentIndex = reminders.IndexOf(sortedReminders[targetIndex]);
+                if (currentIndex != targetIndex)
+                {
+                    reminders.Move(currentIndex, targetIndex);
+                }
+            }
+        }
+        finally
+        {
+            isSortingReminders = false;
         }
     }
 
@@ -309,8 +335,8 @@ public partial class MainPage : ContentPage
         DateTime now)
     {
         return source
-            .OrderBy(reminder => GetReminderPriority(reminder, now))
-            .ThenBy(reminder => GetRelevantDisplayTime(reminder, now))
+            .OrderBy(reminder => GetRelevantDisplayTime(reminder, now))
+            .ThenBy(reminder => GetReminderPriority(reminder, now))
             .ThenBy(static reminder => reminder.Id);
     }
 
@@ -337,5 +363,55 @@ public partial class MainPage : ContentPage
             1 => reminder.DisplayEnd!.Value,
             _ => DateTime.MaxValue,
         };
+    }
+
+    private void SubscribeToReminderChanges()
+    {
+        reminders.CollectionChanged += OnRemindersCollectionChanged;
+        foreach (ReminderItem reminder in reminders)
+        {
+            reminder.PropertyChanged += OnReminderPropertyChanged;
+        }
+    }
+
+    private void UnsubscribeFromReminderChanges()
+    {
+        reminders.CollectionChanged -= OnRemindersCollectionChanged;
+        foreach (ReminderItem reminder in reminders)
+        {
+            reminder.PropertyChanged -= OnReminderPropertyChanged;
+        }
+    }
+
+    private void OnRemindersCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+        {
+            foreach (ReminderItem reminder in e.OldItems)
+            {
+                reminder.PropertyChanged -= OnReminderPropertyChanged;
+            }
+        }
+
+        if (e.NewItems is not null)
+        {
+            foreach (ReminderItem reminder in e.NewItems)
+            {
+                reminder.PropertyChanged += OnReminderPropertyChanged;
+            }
+        }
+
+        if (!isSortingReminders)
+        {
+            SortReminders();
+        }
+    }
+
+    private void OnReminderPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ReminderItem.DisplayStart) or nameof(ReminderItem.DisplayEnd))
+        {
+            SortReminders();
+        }
     }
 }
