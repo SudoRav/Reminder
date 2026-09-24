@@ -1,14 +1,30 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
 namespace Reminder;
 
-public sealed class ReminderItem
+public sealed class ReminderItem : INotifyPropertyChanged
 {
+    private DateTime? displayStart;
+    private DateTime? displayEnd;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public int Id { get; set; }
 
     public string Text { get; set; } = string.Empty;
 
-    public DateTime? DisplayStart { get; set; }
+    public DateTime? DisplayStart
+    {
+        get => displayStart;
+        set => SetField(ref displayStart, value);
+    }
 
-    public DateTime? DisplayEnd { get; set; }
+    public DateTime? DisplayEnd
+    {
+        get => displayEnd;
+        set => SetField(ref displayEnd, value);
+    }
 
     public bool AutoCompleteOnDisplayEnd { get; set; }
 
@@ -44,5 +60,16 @@ public sealed class ReminderItem
             .Order()
             .Select(GetNotificationSettings)
             .ToList();
+    }
+
+    private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value))
+        {
+            return;
+        }
+
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
