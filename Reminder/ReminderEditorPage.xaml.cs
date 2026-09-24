@@ -23,6 +23,7 @@ public partial class ReminderEditorPage : ContentPage
     private NotificationTimeItem? editingNotification;
     private bool isInitializing = true;
     private CancellationTokenSource? autoSaveCancellation;
+    private readonly IDispatcherTimer countdownTimer;
 
     // Автосохранение
     private bool isAutoSaveEnabled = false;
@@ -58,8 +59,11 @@ public partial class ReminderEditorPage : ContentPage
     {
         InitializeComponent();
 
+        countdownTimer = Dispatcher.CreateTimer();
+        countdownTimer.Interval = TimeSpan.FromMinutes(1);
+        countdownTimer.Tick += OnCountdownTimerTick;
+
         InitializeTimerWheels();
-        UpdateTimerDisplay();
 
         this.reminder = reminder;
 
@@ -96,6 +100,7 @@ public partial class ReminderEditorPage : ContentPage
 
         UpdateDisplayPeriodLabel();
         UpdateAutoCompleteControls();
+        UpdateTimerFromDisplayEnd();
 
         isInitializing = false;
     }
@@ -112,7 +117,7 @@ public partial class ReminderEditorPage : ContentPage
         selectedBoundary = DisplayBoundary.Start;
 
         ShowDateTimePicker(
-            displayEnd?.Date.AddDays(-1) ?? DateTime.Today,
+            displayStart,
             TimeSpan.Zero);
 
         StartRadioButton.IsChecked = true;
@@ -126,12 +131,12 @@ public partial class ReminderEditorPage : ContentPage
 
         selectedBoundary = DisplayBoundary.End;
 
-        DateTime endDate =
+        DateTime defaultEnd =
             displayStart?.Date.AddDays(1)
             ?? DateTime.Today.AddDays(1);
 
         ShowDateTimePicker(
-            endDate + new TimeSpan(23, 0, 0),
+            displayEnd ?? defaultEnd + new TimeSpan(23, 0, 0),
             new TimeSpan(23, 0, 0));
 
         StartRadioButton.IsChecked = false;
@@ -322,6 +327,7 @@ public partial class ReminderEditorPage : ContentPage
 
         UpdateDisplayPeriodLabel();
         UpdateAutoCompleteControls();
+        UpdateTimerFromDisplayEnd();
 
         RequestAutoSave();
     }
@@ -766,10 +772,20 @@ public partial class ReminderEditorPage : ContentPage
     // ЖИЗНЕННЫЙ ЦИКЛ
     // ============================================================
 
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+
+        UpdateTimerFromDisplayEnd();
+        countdownTimer.Start();
+    }
+
+
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
 
+        countdownTimer.Stop();
         autoSaveCancellation?.Cancel();
 
         daysSnapCancellation?.Cancel();
@@ -1313,18 +1329,82 @@ public partial class ReminderEditorPage : ContentPage
         object? sender,
         EventArgs e)
     {
-        timerDays =
-            pendingTimerDays;
+        TimeSpan duration = new(
+            pendingTimerDays,
+            pendingTimerHours,
+            pendingTimerMinutes,
+            0);
 
-        timerHours =
-            pendingTimerHours;
+        // Таймер — это только представление даты окончания, поэтому при его
+        // изменении переносим дату окончания на указанное время от текущей минуты.
+        displayEnd = GetCurrentMinute().Add(duration);
+        selectedBoundary = DisplayBoundary.End;
 
-        timerMinutes =
-            pendingTimerMinutes;
+        isUpdatingPickers = true;
+        OverlayDatePicker.Date = displayEnd.Value.Date;
+        OverlayTimePicker.Time = displayEnd.Value.TimeOfDay;
+        isUpdatingPickers = false;
 
-        UpdateTimerDisplay();
+        UpdateSelectedDateTimeLabels();
+        UpdateDisplayPeriodLabel();
+        UpdateAutoCompleteControls();
+        UpdateTimerFromDisplayEnd();
+        RequestAutoSave();
 
         TimerDurationOverlay.IsVisible = false;
+    }
+
+
+    private void OnCountdownTimerTick(
+        object? sender,
+        EventArgs e)
+    {
+        UpdateTimerFromDisplayEnd();
+    }
+
+
+    private void UpdateTimerFromDisplayEnd()
+    {
+        TimeSpan remaining =
+            displayEnd.GetValueOrDefault() - DateTime.Now;
+
+        if (displayEnd is null || remaining <= TimeSpan.Zero)
+        {
+            SetTimerDisplay(TimeSpan.Zero);
+            return;
+        }
+
+        // Колесо задаёт время с точностью до минуты. Округление вверх не
+        // позволяет показывать на минуту меньше сразу после обновления.
+        TimeSpan roundedRemaining = TimeSpan.FromMinutes(
+            Math.Ceiling(remaining.TotalMinutes));
+
+        SetTimerDisplay(roundedRemaining);
+    }
+
+
+    private static DateTime GetCurrentMinute()
+    {
+        DateTime now = DateTime.Now;
+
+        return new DateTime(
+            now.Year,
+            now.Month,
+            now.Day,
+            now.Hour,
+            now.Minute,
+            0,
+            now.Kind);
+    }
+
+
+    private void SetTimerDisplay(TimeSpan duration)
+    {
+        timerDays = duration.Days;
+        timerHours = duration.Hours;
+        timerMinutes = duration.Minutes;
+
+        UpdateTimerDisplay();
     }
 
 
