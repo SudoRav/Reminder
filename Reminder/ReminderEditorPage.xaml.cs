@@ -175,6 +175,7 @@ public partial class ReminderEditorPage : ContentPage
         isUpdatingPickers = false;
 
         UpdateSelectedDateTimeLabels();
+        UpdateTimerFromDateTimePicker();
 
         DateTimePickerOverlay.IsVisible = true;
     }
@@ -203,6 +204,7 @@ public partial class ReminderEditorPage : ContentPage
         if (!isUpdatingPickers)
         {
             UpdateSelectedDateTimeLabels();
+            UpdateTimerFromDateTimePicker();
         }
     }
 
@@ -215,6 +217,7 @@ public partial class ReminderEditorPage : ContentPage
             e.PropertyName == TimePicker.TimeProperty.PropertyName)
         {
             UpdateSelectedDateTimeLabels();
+            UpdateTimerFromDateTimePicker();
         }
     }
 
@@ -224,6 +227,7 @@ public partial class ReminderEditorPage : ContentPage
         EventArgs e)
     {
         editingNotification = null;
+        UpdateTimerFromDisplayEnd();
         DateTimePickerOverlay.IsVisible = false;
     }
 
@@ -1272,6 +1276,8 @@ public partial class ReminderEditorPage : ContentPage
         object? sender,
         TappedEventArgs e)
     {
+        UpdateTimerFromDisplayEnd();
+
         pendingTimerDays = timerDays;
         pendingTimerHours = timerHours;
         pendingTimerMinutes = timerMinutes;
@@ -1359,16 +1365,51 @@ public partial class ReminderEditorPage : ContentPage
         object? sender,
         EventArgs e)
     {
+        if (DateTimePickerOverlay.IsVisible)
+        {
+            UpdateTimerFromDateTimePicker();
+            return;
+        }
+
         UpdateTimerFromDisplayEnd();
+    }
+
+
+    private void UpdateTimerFromDateTimePicker()
+    {
+        // Date/time picker changes are only a preview until the user saves
+        // them. Reflect an edited end date in the visual-only timer without
+        // changing the reminder or affecting notification scheduling.
+        if (editingNotification is not null ||
+            selectedBoundary != DisplayBoundary.End)
+        {
+            UpdateTimerFromDisplayEnd();
+            return;
+        }
+
+        DateTime selectedEnd =
+            OverlayDatePicker.Date + OverlayTimePicker.Time;
+
+        UpdateTimerDisplay(selectedEnd - DateTime.Now);
     }
 
 
     private void UpdateTimerFromDisplayEnd()
     {
-        TimeSpan remaining =
-            displayEnd.GetValueOrDefault() - DateTime.Now;
+        if (displayEnd is null)
+        {
+            SetTimerDisplay(TimeSpan.Zero);
+            return;
+        }
 
-        if (displayEnd is null || remaining <= TimeSpan.Zero)
+        UpdateTimerDisplay(displayEnd.Value - DateTime.Now);
+    }
+
+
+    private void UpdateTimerDisplay(TimeSpan remaining)
+    {
+
+        if (remaining <= TimeSpan.Zero)
         {
             SetTimerDisplay(TimeSpan.Zero);
             return;
