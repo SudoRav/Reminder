@@ -21,7 +21,7 @@ public partial class MainPage : ContentPage
         notificationService = IPlatformApplication.Current?.Services.GetRequiredService<IReminderNotificationService>()
             ?? throw new InvalidOperationException("Notification service is not registered.");
 
-        reminders = new ObservableCollection<ReminderItem>(store.Load());
+        reminders = new ObservableCollection<ReminderItem>(OrderReminders(store.Load(), DateTime.Now));
         completedReminders = new ObservableCollection<ReminderItem>(store.LoadCompleted());
         RemindersCollectionView.ItemsSource = reminders;
         SubscribeToNotificationCompletion();
@@ -206,6 +206,7 @@ public partial class MainPage : ContentPage
 
     private void RefreshReminders()
     {
+        SortReminders();
         RemindersCollectionView.ItemsSource = null;
         RemindersCollectionView.ItemsSource = reminders;
     }
@@ -217,6 +218,8 @@ public partial class MainPage : ContentPage
         {
             reminders.Add(reminder);
         }
+
+        SortReminders();
 
         completedReminders.Clear();
         foreach (ReminderItem reminder in store.LoadCompleted())
@@ -283,5 +286,56 @@ public partial class MainPage : ContentPage
     private void SaveCompletedReminders()
     {
         store.SaveCompleted(completedReminders);
+    }
+
+    private void SortReminders()
+    {
+        List<ReminderItem> sortedReminders = OrderReminders(reminders, DateTime.Now).ToList();
+
+        if (reminders.SequenceEqual(sortedReminders))
+        {
+            return;
+        }
+
+        reminders.Clear();
+        foreach (ReminderItem reminder in sortedReminders)
+        {
+            reminders.Add(reminder);
+        }
+    }
+
+    private static IOrderedEnumerable<ReminderItem> OrderReminders(
+        IEnumerable<ReminderItem> source,
+        DateTime now)
+    {
+        return source
+            .OrderBy(reminder => GetReminderPriority(reminder, now))
+            .ThenBy(reminder => GetRelevantDisplayTime(reminder, now))
+            .ThenBy(static reminder => reminder.Id);
+    }
+
+    private static int GetReminderPriority(ReminderItem reminder, DateTime now)
+    {
+        if (reminder.DisplayStart is DateTime displayStart && displayStart >= now)
+        {
+            return 0;
+        }
+
+        if (reminder.DisplayEnd is DateTime displayEnd && displayEnd >= now)
+        {
+            return 1;
+        }
+
+        return 2;
+    }
+
+    private static DateTime GetRelevantDisplayTime(ReminderItem reminder, DateTime now)
+    {
+        return GetReminderPriority(reminder, now) switch
+        {
+            0 => reminder.DisplayStart!.Value,
+            1 => reminder.DisplayEnd!.Value,
+            _ => DateTime.MaxValue,
+        };
     }
 }
