@@ -60,6 +60,8 @@ public partial class ReminderEditorPage : ContentPage
 
     private bool autoCompleteOnDisplayEnd;
 
+    private bool showInNotificationCenter = true;
+
     // Не null, когда открыт Date/TimePicker
     // конкретного NotificationTimeItem.
     private NotificationTimeItem? editingNotification;
@@ -183,6 +185,9 @@ public partial class ReminderEditorPage : ContentPage
 
         autoCompleteOnDisplayEnd =
             reminder?.AutoCompleteOnDisplayEnd ?? false;
+
+        showInNotificationCenter =
+            reminder?.ShowInNotificationCenter ?? true;
 
         if (reminder is not null)
         {
@@ -613,6 +618,9 @@ public partial class ReminderEditorPage : ContentPage
 
             AutoCompleteOnDisplayEnd =
                 autoCompleteOnDisplayEnd,
+
+            ShowInNotificationCenter =
+                showInNotificationCenter,
 
             NotificationTimes =
                 notificationTimes
@@ -1645,6 +1653,22 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
+    private void OnShowInNotificationCenterChanged(
+        object? sender,
+        CheckedChangedEventArgs e)
+    {
+        if (isInitializing)
+        {
+            return;
+        }
+
+        showInNotificationCenter =
+            e.Value;
+
+        RequestAutoSave();
+    }
+
+
     private void UpdateAutoCompleteControls()
     {
         bool hasDisplayEnd =
@@ -1653,17 +1677,31 @@ public partial class ReminderEditorPage : ContentPage
         bool hasDisplayStart =
             displayStart is not null;
 
+        bool hasDisplayPeriod =
+            hasDisplayEnd ||
+            hasDisplayStart;
 
         AutoCompleteCheckBox.IsVisible =
-            hasDisplayEnd;
+            hasDisplayPeriod;
 
         AutoCompleteLabel.IsVisible =
-            hasDisplayEnd;
+            hasDisplayPeriod;
+
+        ShowInNotificationCenterCheckBox.IsVisible =
+            !hasDisplayPeriod;
+
+        ShowInNotificationCenterLabel.IsVisible =
+            !hasDisplayPeriod;
 
 
         DisplayPeriodGrid.IsVisible =
-            hasDisplayEnd ||
-            hasDisplayStart;
+            true;
+
+        if (hasDisplayPeriod)
+        {
+            showInNotificationCenter =
+                true;
+        }
 
 
         if (!hasDisplayEnd)
@@ -1676,6 +1714,9 @@ public partial class ReminderEditorPage : ContentPage
         AutoCompleteCheckBox.IsChecked =
             hasDisplayEnd &&
             autoCompleteOnDisplayEnd;
+
+        ShowInNotificationCenterCheckBox.IsChecked =
+            showInNotificationCenter;
     }
 
 

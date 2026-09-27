@@ -46,17 +46,17 @@
                            IsVisible="False"
                            VerticalTextAlignment="Center" />
 
-                    <!--<CheckBox x:Name="Показ"
+                    <CheckBox x:Name="ShowInNotificationCenterCheckBox"
                               Grid.Column="1"
                               IsVisible="False"
-                              CheckedChanged="показ" />
+                              CheckedChanged="OnShowInNotificationCenterChanged" />
 
-                    <Label x:Name="Показ"
+                    <Label x:Name="ShowInNotificationCenterLabel"
                            Grid.Column="2"
                            FontSize="12"
                            Text="Показ"
                            IsVisible="False"
-                           VerticalTextAlignment="Center" />-->
+                           VerticalTextAlignment="Center" />
 
                 </Grid>
 

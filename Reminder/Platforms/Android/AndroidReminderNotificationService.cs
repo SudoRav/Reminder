@@ -123,7 +123,8 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
         if (await EnsureNotificationPermissionAsync())
         {
-            if (ReminderDisplayFormatter.ShouldDisplayNow(
+            if (reminder.ShowInNotificationCenter &&
+                ReminderDisplayFormatter.ShouldDisplayNow(
                     reminder,
                     DateTime.Now))
             {
@@ -150,7 +151,8 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
         if (await EnsureNotificationPermissionAsync())
         {
-            if (ReminderDisplayFormatter.ShouldDisplayNow(
+            if (reminder.ShowInNotificationCenter &&
+                ReminderDisplayFormatter.ShouldDisplayNow(
                     reminder,
                     DateTime.Now))
             {
@@ -249,7 +251,8 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     {
         DateTime now = DateTime.Now;
 
-        if (!ReminderDisplayFormatter.ShouldDisplayNow(
+        if (!reminder.ShowInNotificationCenter ||
+            !ReminderDisplayFormatter.ShouldDisplayNow(
                 reminder,
                 now))
         {
@@ -1113,7 +1116,8 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
         DateTime now = DateTime.Now;
 
-        if (ReminderDisplayFormatter.ShouldDisplayNow(
+        if (reminder.ShowInNotificationCenter &&
+            ReminderDisplayFormatter.ShouldDisplayNow(
                 reminder,
                 now))
         {

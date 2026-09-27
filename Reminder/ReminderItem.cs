@@ -28,6 +28,12 @@ public sealed class ReminderItem : INotifyPropertyChanged
 
     public bool AutoCompleteOnDisplayEnd { get; set; }
 
+    /// <summary>
+    /// Controls whether a reminder without a display period is kept in the
+    /// device notification center. Timed reminders always enable this value.
+    /// </summary>
+    public bool ShowInNotificationCenter { get; set; } = true;
+
     public List<DateTime> NotificationTimes { get; set; } = [];
 
     public List<NotificationTimeSettings> NotificationTimeSettings { get; set; } = [];
