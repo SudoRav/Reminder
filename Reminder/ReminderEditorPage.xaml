@@ -51,7 +51,7 @@
                               IsVisible="False"
                               CheckedChanged="показ" />
 
-                    <Label x:Name="AutoCompleteLabel"
+                    <Label x:Name="Показ"
                            Grid.Column="2"
                            FontSize="12"
                            Text="Показ"
