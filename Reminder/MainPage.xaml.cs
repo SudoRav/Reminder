@@ -74,6 +74,7 @@ public partial class MainPage : ContentPage
             reminder.DisplayStart = editedReminder.DisplayStart;
             reminder.DisplayEnd = editedReminder.DisplayEnd;
             reminder.AutoCompleteOnDisplayEnd = editedReminder.AutoCompleteOnDisplayEnd;
+            reminder.ShowInNotificationCenter = editedReminder.ShowInNotificationCenter;
             reminder.NotificationTimes = editedReminder.NotificationTimes;
             reminder.NotificationTimeSettings = editedReminder.NotificationTimeSettings;
             RefreshReminders();
@@ -132,6 +133,7 @@ public partial class MainPage : ContentPage
             reminder.DisplayStart = editedReminder.DisplayStart;
             reminder.DisplayEnd = editedReminder.DisplayEnd;
             reminder.AutoCompleteOnDisplayEnd = editedReminder.AutoCompleteOnDisplayEnd;
+            reminder.ShowInNotificationCenter = editedReminder.ShowInNotificationCenter;
             reminder.NotificationTimes = editedReminder.NotificationTimes;
             reminder.NotificationTimeSettings = editedReminder.NotificationTimeSettings;
             RefreshReminders();
