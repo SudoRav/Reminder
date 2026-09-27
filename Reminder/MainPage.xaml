@@ -4,50 +4,67 @@
              xmlns:local="clr-namespace:Reminder"
              x:Class="Reminder.MainPage"
              Title="Напоминания">
-    <Grid Padding="24, 0, 24, 0" RowDefinitions="Auto,*,Auto" RowSpacing="0">
 
+    <Grid Padding="24,0,24,0"
+          RowDefinitions="Auto,*,Auto"
+          RowSpacing="0">
+
+        <!-- Область прокрутки -->
         <CollectionView x:Name="RemindersCollectionView"
                         Grid.Row="1"
                         EmptyView="Напоминаний пока нет">
-            <CollectionView.ItemTemplate> 
+
+            <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="local:ReminderItem">
                     <Border Margin="0,0,0,12"
                             Padding="16"
                             StrokeShape="RoundRectangle 12"
                             BackgroundColor="{AppThemeBinding Light=#FFF8D6, Dark=#4B421D}">
+
                         <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnReminderTapped" CommandParameter="{Binding .}" />
+                            <TapGestureRecognizer Tapped="OnReminderTapped"
+                                                   CommandParameter="{Binding .}" />
                         </Border.GestureRecognizers>
+
                         <VerticalStackLayout Spacing="10">
+
                             <Label Text="{Binding ., Converter={StaticResource ReminderListPeriodConverter}}"
                                    FontAttributes="Bold"
                                    FontSize="14"
                                    IsVisible="{Binding ., Converter={StaticResource ReminderListPeriodVisibilityConverter}}"
                                    LineBreakMode="WordWrap" />
+
                             <Label Text="{Binding Text}"
                                    FontSize="18"
                                    LineBreakMode="WordWrap" />
+
                         </VerticalStackLayout>
+
                     </Border>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
+
         </CollectionView>
 
-        <Grid Grid.Row="1"
+        <!-- Кнопки находятся уже вне области прокрутки -->
+        <Grid Grid.Row="2"
               ColumnDefinitions="*,*"
               ColumnSpacing="12"
-              HorizontalOptions="Center"
-              VerticalOptions="End"
-              Margin="24">
+              Margin="0,12,0,12">
+
             <Button WidthRequest="140"
                     HeightRequest="40"
                     Text="Завершённые"
                     Clicked="OnCompletedClicked" />
+
             <Button Grid.Column="1"
                     WidthRequest="140"
                     HeightRequest="40"
                     Text="Создать"
-                    Clicked="OnCreateClicked"/>
+                    Clicked="OnCreateClicked" />
+
         </Grid>
+
     </Grid>
+
 </ContentPage>

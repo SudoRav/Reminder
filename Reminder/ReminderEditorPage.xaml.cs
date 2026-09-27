@@ -7,26 +7,73 @@ namespace Reminder;
 
 public partial class ReminderEditorPage : ContentPage
 {
+    // ============================================================
+    // ОСНОВНЫЕ ТИПЫ
+    // ============================================================
+
     private enum DisplayBoundary
     {
         Start,
         End,
     }
 
+
+    private enum NotificationReference
+    {
+        Now,
+        Start,
+        End,
+    }
+
+
+    private enum NotificationDirection
+    {
+        Through,
+        Before,
+    }
+
+
+    private enum NotificationUnit
+    {
+        Minute,
+        Hour,
+        Day,
+    }
+
+
+
+    // ============================================================
+    // ОСНОВНЫЕ ПОЛЯ
+    // ============================================================
+
     private readonly ReminderItem? reminder;
+
     private DateTime? displayStart;
     private DateTime? displayEnd;
-    private readonly ObservableCollection<NotificationTimeItem> notificationTimes;
+
+    private readonly ObservableCollection<NotificationTimeItem>
+        notificationTimes;
+
     private DisplayBoundary selectedBoundary;
+
     private bool isUpdatingPickers;
+
     private bool autoCompleteOnDisplayEnd;
+
+    // Не null, когда открыт Date/TimePicker
+    // конкретного NotificationTimeItem.
     private NotificationTimeItem? editingNotification;
-    private bool isInitializing = true;
+
+    private bool isInitializing;
+
     private CancellationTokenSource? autoSaveCancellation;
+
     private readonly IDispatcherTimer countdownTimer;
 
-    // Автосохранение
     private bool isAutoSaveEnabled = false;
+
+    private bool isDeleting;
+
 
     // ============================================================
     // ТАЙМЕР
@@ -47,30 +94,92 @@ public partial class ReminderEditorPage : ContentPage
     private CancellationTokenSource? hoursSnapCancellation;
     private CancellationTokenSource? minutesSnapCancellation;
 
-    // Не даёт программному ScrollToAsync снова запускать snap.
     private bool isTimerWheelProgrammaticScroll;
+
+
+    // ============================================================
+    // ДОБАВЛЕНИЕ ОПОВЕЩЕНИЯ
+    // ============================================================
+
+    private const double NotificationWheelItemHeight = 60;
+    private const double NotificationWheelTopPadding = 90;
+
+    // Когда?
+    // По умолчанию: Сейчас.
+    private NotificationReference notificationReference =
+        NotificationReference.Now;
+
+    // Время?
+    // 0 = Через
+    // 1 = За
+    private int notificationDirectionIndex;
+
+    // Значение 1..99.
+    private int notificationAmount = 1;
+
+    // 0 = Мин
+    // 1 = Час
+    // 2 = Ден
+    private int notificationUnitIndex = 1;
+
+    private int pendingNotificationDirectionIndex;
+    private int pendingNotificationAmount;
+    private int pendingNotificationUnitIndex;
+
+    private CancellationTokenSource?
+        notificationDirectionSnapCancellation;
+
+    private CancellationTokenSource?
+        notificationAmountSnapCancellation;
+
+    private CancellationTokenSource?
+        notificationUnitSnapCancellation;
+
+    private bool isNotificationWheelProgrammaticScroll;
+
+
+    // ============================================================
+    // СОБЫТИЯ
+    // ============================================================
 
     public event EventHandler<ReminderItem>? SaveRequested;
 
     public event EventHandler? DeleteRequested;
 
 
-    public ReminderEditorPage(ReminderItem? reminder = null)
+    // ============================================================
+    // КОНСТРУКТОР
+    // ============================================================
+
+    public ReminderEditorPage(
+        ReminderItem? reminder = null)
     {
         InitializeComponent();
 
-        countdownTimer = Dispatcher.CreateTimer();
-        countdownTimer.Interval = TimeSpan.FromMinutes(1);
-        countdownTimer.Tick += OnCountdownTimerTick;
+        countdownTimer =
+            Dispatcher.CreateTimer();
+
+        countdownTimer.Interval =
+            TimeSpan.FromSeconds(1);
+
+        countdownTimer.Tick +=
+            OnCountdownTimerTick;
 
         InitializeTimerWheels();
 
-        this.reminder = reminder;
+        InitializeNotificationWheels();
 
-        ReminderTextEditor.Text = reminder?.Text ?? string.Empty;
+        this.reminder =
+            reminder;
 
-        displayStart = reminder?.DisplayStart;
-        displayEnd = reminder?.DisplayEnd;
+        ReminderTextEditor.Text =
+            reminder?.Text ?? string.Empty;
+
+        displayStart =
+            reminder?.DisplayStart;
+
+        displayEnd =
+            reminder?.DisplayEnd;
 
         autoCompleteOnDisplayEnd =
             reminder?.AutoCompleteOnDisplayEnd ?? false;
@@ -80,104 +189,173 @@ public partial class ReminderEditorPage : ContentPage
             reminder.NormalizeNotificationSettings();
         }
 
-        notificationTimes = new ObservableCollection<NotificationTimeItem>(
-            reminder?.NotificationTimeSettings
-                .OrderBy(x => x.Time)
-                .Select(x => new NotificationTimeItem(x))
-            ?? Enumerable.Empty<NotificationTimeItem>());
+        notificationTimes =
+            new ObservableCollection<NotificationTimeItem>(
+                reminder?.NotificationTimeSettings
+                    .OrderBy(x => x.Time)
+                    .Select(
+                        x => new NotificationTimeItem(x))
+                ?? Enumerable.Empty<NotificationTimeItem>());
 
-        foreach (NotificationTimeItem item in notificationTimes)
+
+        foreach (NotificationTimeItem item
+                 in notificationTimes)
         {
-            item.PropertyChanged += OnNotificationTimeItemChanged;
+            item.PropertyChanged +=
+                OnNotificationTimeItemChanged;
         }
 
-        NotificationTimesCollectionView.ItemsSource = notificationTimes;
 
-        DeleteButton.IsVisible = reminder is not null;
+        NotificationTimesCollectionView.ItemsSource =
+            notificationTimes;
 
-        StartRadioButton.IsChecked = false;
-        EndRadioButton.IsChecked = true;
+
+        DeleteButton.IsVisible =
+            reminder is not null;
+
+
+        selectedBoundary =
+            DisplayBoundary.End;
+
+
+        UpdateNotificationReferenceButtons();
 
         UpdateDisplayPeriodLabel();
+
         UpdateAutoCompleteControls();
-        UpdateTimerFromDisplayEnd();
+
+        UpdateTimerFromCurrentTarget();
+
 
         isInitializing = false;
+
+        countdownTimer.Start();
     }
 
+
+    private static readonly Color TimerExpiredColor =
+    Color.FromArgb("#D98282");
+
+    private static readonly Color TimerNormalLightColor =
+        Color.FromArgb("#20242A");
+
+    private static readonly Color TimerNormalDarkColor =
+        Colors.White;
 
     // ============================================================
     // ДАТА / ВРЕМЯ
     // ============================================================
 
-    private void OnStartClicked(object? sender, EventArgs e)
+    private void OnStartClicked(
+        object? sender,
+        EventArgs e)
     {
-        DisplayPeriodLabel.IsVisible = true;
+        DisplayPeriodLabel.IsVisible =
+            true;
 
-        selectedBoundary = DisplayBoundary.Start;
+        selectedBoundary =
+            DisplayBoundary.Start;
+
+        DateTime initialDate;
+        TimeSpan initialTime;
+
+        if (displayStart is DateTime savedStart)
+        {
+            initialDate =
+                savedStart.Date;
+
+            initialTime =
+                savedStart.TimeOfDay;
+        }
+        else if (displayEnd is DateTime savedEnd)
+        {
+            initialDate =
+                savedEnd.Date.AddDays(-1);
+
+            initialTime =
+                TimeSpan.Zero;
+        }
+        else
+        {
+            initialDate =
+                DateTime.Today;
+
+            initialTime =
+                TimeSpan.Zero;
+        }
 
         ShowDateTimePicker(
-            displayStart,
-            TimeSpan.Zero);
-
-        StartRadioButton.IsChecked = true;
-        EndRadioButton.IsChecked = false;
+            initialDate,
+            initialTime);
     }
 
 
-    private void OnEndClicked(object? sender, EventArgs e)
+    private void OnEndClicked(
+        object? sender,
+        EventArgs e)
     {
-        DisplayPeriodLabel.IsVisible = true;
+        DisplayPeriodLabel.IsVisible =
+            true;
 
-        selectedBoundary = DisplayBoundary.End;
+        selectedBoundary =
+            DisplayBoundary.End;
 
-        DateTime defaultEnd =
-            displayStart?.Date.AddDays(1)
-            ?? DateTime.Today.AddDays(1);
+        DateTime initialDate;
+        TimeSpan initialTime;
+
+        if (displayEnd is DateTime savedEnd)
+        {
+            initialDate =
+                savedEnd.Date;
+
+            initialTime =
+                savedEnd.TimeOfDay;
+        }
+        else if (displayStart is DateTime savedStart)
+        {
+            initialDate =
+                savedStart.Date.AddDays(1);
+
+            initialTime =
+                new TimeSpan(23, 0, 0);
+        }
+        else
+        {
+            initialDate =
+                DateTime.Today.AddDays(1);
+
+            initialTime =
+                new TimeSpan(23, 0, 0);
+        }
 
         ShowDateTimePicker(
-            displayEnd ?? defaultEnd + new TimeSpan(23, 0, 0),
-            new TimeSpan(23, 0, 0));
-
-        StartRadioButton.IsChecked = false;
-        EndRadioButton.IsChecked = true;
+            initialDate,
+            initialTime);
     }
 
 
     private void ShowDateTimePicker(
-        DateTime? dateTime,
-        TimeSpan defaultTime)
+        DateTime initialDate,
+        TimeSpan initialTime)
     {
-        DateTime initialDate;
-        TimeSpan initialTime;
+        isUpdatingPickers =
+            true;
 
-        if (dateTime.HasValue)
-        {
-            initialDate = dateTime.Value.Date;
-            initialTime = dateTime.Value.TimeOfDay;
-        }
-        else if (selectedBoundary == DisplayBoundary.End)
-        {
-            initialDate = DateTime.Today.AddDays(1);
-            initialTime = new TimeSpan(23, 0, 0);
-        }
-        else
-        {
-            initialDate = DateTime.Today;
-            initialTime = defaultTime;
-        }
+        OverlayDatePicker.Date =
+            initialDate;
 
-        isUpdatingPickers = true;
+        OverlayTimePicker.Time =
+            initialTime;
 
-        OverlayDatePicker.Date = initialDate;
-        OverlayTimePicker.Time = initialTime;
-
-        isUpdatingPickers = false;
+        isUpdatingPickers =
+            false;
 
         UpdateSelectedDateTimeLabels();
+
         UpdateTimerFromDateTimePicker();
 
-        DateTimePickerOverlay.IsVisible = true;
+        DateTimePickerOverlay.IsVisible =
+            true;
     }
 
 
@@ -185,7 +363,8 @@ public partial class ReminderEditorPage : ContentPage
         object? sender,
         TappedEventArgs e)
     {
-        _ = OpenPickerAsync(OverlayDatePicker);
+        _ = OpenPickerAsync(
+            OverlayDatePicker);
     }
 
 
@@ -193,7 +372,8 @@ public partial class ReminderEditorPage : ContentPage
         object? sender,
         TappedEventArgs e)
     {
-        _ = OpenPickerAsync(OverlayTimePicker);
+        _ = OpenPickerAsync(
+            OverlayTimePicker);
     }
 
 
@@ -204,6 +384,7 @@ public partial class ReminderEditorPage : ContentPage
         if (!isUpdatingPickers)
         {
             UpdateSelectedDateTimeLabels();
+
             UpdateTimerFromDateTimePicker();
         }
     }
@@ -214,9 +395,11 @@ public partial class ReminderEditorPage : ContentPage
         PropertyChangedEventArgs e)
     {
         if (!isUpdatingPickers &&
-            e.PropertyName == TimePicker.TimeProperty.PropertyName)
+            e.PropertyName ==
+            TimePicker.TimeProperty.PropertyName)
         {
             UpdateSelectedDateTimeLabels();
+
             UpdateTimerFromDateTimePicker();
         }
     }
@@ -226,9 +409,13 @@ public partial class ReminderEditorPage : ContentPage
         object? sender,
         EventArgs e)
     {
-        editingNotification = null;
-        UpdateTimerFromDisplayEnd();
-        DateTimePickerOverlay.IsVisible = false;
+        editingNotification =
+            null;
+
+        DateTimePickerOverlay.IsVisible =
+            false;
+
+        UpdateTimerFromSelectedBoundary();
     }
 
 
@@ -238,7 +425,8 @@ public partial class ReminderEditorPage : ContentPage
     {
         ApplySelectedDateTime();
 
-        DateTimePickerOverlay.IsVisible = false;
+        DateTimePickerOverlay.IsVisible =
+            false;
     }
 
 
@@ -256,32 +444,40 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
-    private static async Task OpenPickerAsync(View picker)
+    private static async Task OpenPickerAsync(
+        View picker)
     {
         await Task.Delay(50);
 
         bool focused =
-            await picker.Dispatcher.DispatchAsync(picker.Focus);
+            await picker.Dispatcher.DispatchAsync(
+                picker.Focus);
 
         if (!focused)
         {
-            OpenPickerWithIsOpenProperty(picker);
+            OpenPickerWithIsOpenProperty(
+                picker);
         }
     }
 
 
-    private static bool OpenPickerWithIsOpenProperty(View picker)
+    private static bool OpenPickerWithIsOpenProperty(
+        View picker)
     {
         PropertyInfo? isOpenProperty =
-            picker.GetType().GetProperty("IsOpen");
+            picker.GetType()
+                .GetProperty("IsOpen");
 
-        if (isOpenProperty?.PropertyType != typeof(bool) ||
+        if (isOpenProperty?.PropertyType !=
+            typeof(bool) ||
             !isOpenProperty.CanWrite)
         {
             return false;
         }
 
-        isOpenProperty.SetValue(picker, true);
+        isOpenProperty.SetValue(
+            picker,
+            true);
 
         return true;
     }
@@ -293,52 +489,79 @@ public partial class ReminderEditorPage : ContentPage
             OverlayDatePicker.Date +
             OverlayTimePicker.Time;
 
-        // Редактирование времени уведомления
+
+        // ========================================================
+        // NotificationTimeItem
+        // ========================================================
+
         if (editingNotification is not null)
         {
-            editingNotification.Time = value;
+            editingNotification.Time =
+                value;
 
             SortNotifications();
 
-            NotificationTimesCollectionView.ItemsSource = null;
+            NotificationTimesCollectionView.ItemsSource =
+                null;
+
             NotificationTimesCollectionView.ItemsSource =
                 notificationTimes;
 
-            editingNotification = null;
+            editingNotification =
+                null;
+
+            UpdateTimerFromSelectedBoundary();
 
             RequestAutoSave();
 
             return;
         }
 
-        // Редактирование начала отображения
-        if (selectedBoundary == DisplayBoundary.Start)
+
+        // ========================================================
+        // Start
+        // ========================================================
+
+        if (selectedBoundary ==
+            DisplayBoundary.Start)
         {
-            displayStart = value;
+            displayStart =
+                value;
         }
-        // Редактирование конца отображения
+
+
+        // ========================================================
+        // End
+        // ========================================================
+
         else
         {
-            bool hadDisplayEnd = displayEnd is not null;
+            bool hadDisplayEnd =
+                displayEnd is not null;
 
-            displayEnd = value;
+            displayEnd =
+                value;
 
             if (!hadDisplayEnd)
             {
-                autoCompleteOnDisplayEnd = false;
+                autoCompleteOnDisplayEnd =
+                    false;
             }
         }
 
+
         UpdateDisplayPeriodLabel();
+
         UpdateAutoCompleteControls();
-        UpdateTimerFromDisplayEnd();
+
+        UpdateTimerFromSelectedBoundary();
 
         RequestAutoSave();
     }
 
 
     // ============================================================
-    // АВТОСОХРАНЕНИЕ / СОХРАНЕНИЕ
+    // АВТОСОХРАНЕНИЕ
     // ============================================================
 
     private void OnReminderChanged(
@@ -357,7 +580,8 @@ public partial class ReminderEditorPage : ContentPage
         }
 
         string text =
-            ReminderTextEditor.Text?.Trim() ?? string.Empty;
+            ReminderTextEditor.Text?.Trim()
+            ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -366,29 +590,42 @@ public partial class ReminderEditorPage : ContentPage
 
         SaveRequested?.Invoke(
             this,
-            new ReminderItem
-            {
-                Id = reminder?.Id ?? 0,
+            CreateReminderForSave(text));
+    }
 
-                Text = text,
 
-                DisplayStart = displayStart,
+    private ReminderItem CreateReminderForSave(
+        string text)
+    {
+        return new ReminderItem
+        {
+            Id =
+                reminder?.Id ?? 0,
 
-                DisplayEnd = displayEnd,
+            Text =
+                text,
 
-                AutoCompleteOnDisplayEnd =
-                    autoCompleteOnDisplayEnd,
+            DisplayStart =
+                displayStart,
 
-                NotificationTimes = notificationTimes
+            DisplayEnd =
+                displayEnd,
+
+            AutoCompleteOnDisplayEnd =
+                autoCompleteOnDisplayEnd,
+
+            NotificationTimes =
+                notificationTimes
                     .Select(x => x.Time)
                     .Order()
                     .ToList(),
 
-                NotificationTimeSettings = notificationTimes
+            NotificationTimeSettings =
+                notificationTimes
                     .OrderBy(x => x.Time)
                     .Select(x => x.ToSettings())
                     .ToList(),
-            });
+        };
     }
 
 
@@ -415,7 +652,9 @@ public partial class ReminderEditorPage : ContentPage
     {
         try
         {
-            await Task.Delay(700, token);
+            await Task.Delay(
+                700,
+                token);
         }
         catch (TaskCanceledException)
         {
@@ -428,45 +667,22 @@ public partial class ReminderEditorPage : ContentPage
         }
 
         string text =
-            ReminderTextEditor.Text?.Trim() ?? string.Empty;
+            ReminderTextEditor.Text?.Trim()
+            ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(text))
         {
             return;
         }
 
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            SaveRequested?.Invoke(
-                this,
-                new ReminderItem
-                {
-                    Id = reminder?.Id ?? 0,
-
-                    Text = text,
-
-                    DisplayStart = displayStart,
-
-                    DisplayEnd = displayEnd,
-
-                    AutoCompleteOnDisplayEnd =
-                        autoCompleteOnDisplayEnd,
-
-                    NotificationTimes = notificationTimes
-                        .Select(x => x.Time)
-                        .Order()
-                        .ToList(),
-
-                    NotificationTimeSettings = notificationTimes
-                        .OrderBy(x => x.Time)
-                        .Select(x => x.ToSettings())
-                        .ToList()
-                });
-        });
+        MainThread.BeginInvokeOnMainThread(
+            () =>
+            {
+                SaveRequested?.Invoke(
+                    this,
+                    CreateReminderForSave(text));
+            });
     }
-
-
-    private bool isDeleting;
 
 
     private async void OnDeleteClicked(
@@ -478,7 +694,8 @@ public partial class ReminderEditorPage : ContentPage
             return;
         }
 
-        isDeleting = true;
+        isDeleting =
+            true;
 
         DeleteRequested?.Invoke(
             this,
@@ -498,7 +715,8 @@ public partial class ReminderEditorPage : ContentPage
         }
 
         string text =
-            ReminderTextEditor.Text?.Trim() ?? string.Empty;
+            ReminderTextEditor.Text?.Trim()
+            ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(text))
         {
@@ -510,132 +728,815 @@ public partial class ReminderEditorPage : ContentPage
             return;
         }
 
-        ReminderItem savedReminder = new()
-        {
-            Id = reminder?.Id ?? 0,
-
-            Text = text,
-
-            DisplayStart = displayStart,
-
-            DisplayEnd = displayEnd,
-
-            AutoCompleteOnDisplayEnd =
-                autoCompleteOnDisplayEnd,
-
-            NotificationTimes = notificationTimes
-                .Select(x => x.Time)
-                .Order()
-                .ToList(),
-
-            NotificationTimeSettings = notificationTimes
-                .OrderBy(x => x.Time)
-                .Select(x => x.ToSettings())
-                .ToList()
-        };
+        ReminderItem savedReminder =
+            CreateReminderForSave(text);
 
         SaveRequested?.Invoke(
             this,
             savedReminder);
 
-        isDeleting = true;
+        isDeleting =
+            true;
 
         await Navigation.PopModalAsync();
     }
 
 
     // ============================================================
-    // УВЕДОМЛЕНИЯ
+    // ДОБАВЛЕНИЕ ОПОВЕЩЕНИЯ
     // ============================================================
 
-    private async void OnAddWeekNotificationClicked(
+    private async void OnAddNotificationClicked(
         object? sender,
         EventArgs e)
     {
-        await AddNotificationTimeAsync(
-            TimeSpan.FromDays(7));
+        // --------------------------------------------------------
+        // Значения по умолчанию
+        // --------------------------------------------------------
+
+        notificationReference =
+            NotificationReference.Now;
+
+        notificationDirectionIndex =
+            0; // Через
+
+        notificationAmount =
+            1;
+
+        notificationUnitIndex =
+            1; // Час
+
+
+        pendingNotificationDirectionIndex =
+            0;
+
+        pendingNotificationAmount =
+            1;
+
+        pendingNotificationUnitIndex =
+            1;
+
+
+        UpdateNotificationReferenceButtons();
+
+        UpdateNotificationWheelVisuals();
+
+
+        NotificationAddOverlay.IsVisible =
+            true;
+
+
+        await Task.Delay(50);
+
+        await PositionNotificationWheelsAsync();
     }
 
 
-    private async void OnAddDayNotificationClicked(
+    private async Task PositionNotificationWheelsAsync()
+    {
+        isNotificationWheelProgrammaticScroll =
+            true;
+
+        try
+        {
+            await NotificationDirectionWheel.ScrollToAsync(
+                0,
+                pendingNotificationDirectionIndex *
+                    NotificationWheelItemHeight,
+                false);
+
+
+            await NotificationAmountWheel.ScrollToAsync(
+                0,
+                (pendingNotificationAmount - 1) *
+                    NotificationWheelItemHeight,
+                false);
+
+
+            await NotificationUnitWheel.ScrollToAsync(
+                0,
+                pendingNotificationUnitIndex *
+                    NotificationWheelItemHeight,
+                false);
+        }
+        finally
+        {
+            isNotificationWheelProgrammaticScroll =
+                false;
+        }
+
+        UpdateNotificationWheelVisuals();
+    }
+
+
+    private void OnCancelNotificationClicked(
         object? sender,
         EventArgs e)
     {
-        await AddNotificationTimeAsync(
-            TimeSpan.FromDays(1));
+        NotificationAddOverlay.IsVisible =
+            false;
     }
 
 
-    private async void OnAddHourNotificationClicked(
+    private async void OnSaveNotificationClicked(
         object? sender,
         EventArgs e)
     {
-        await AddNotificationTimeAsync(
-            TimeSpan.FromHours(1));
-    }
+        DateTime baseDateTime;
 
+        // ========================================================
+        // ОПРЕДЕЛЯЕМ БАЗОВОЕ ВРЕМЯ
+        // ========================================================
 
-    private async Task AddNotificationTimeAsync(
-        TimeSpan offset)
-    {
-        DateTime? targetDateTime = null;
-
-        if (StartRadioButton.IsChecked)
+        switch (notificationReference)
         {
-            targetDateTime = displayStart;
+            case NotificationReference.Now:
+
+                baseDateTime =
+                    DateTime.Now;
+
+                break;
+
+
+            case NotificationReference.Start:
+
+                if (displayStart is not DateTime start)
+                {
+                    await DisplayAlert(
+                        "Ошибка",
+                        "Сначала задайте начало напоминания.",
+                        "OK");
+
+                    return;
+                }
+
+                baseDateTime =
+                    start;
+
+                break;
+
+
+            case NotificationReference.End:
+
+                if (displayEnd is not DateTime end)
+                {
+                    await DisplayAlert(
+                        "Ошибка",
+                        "Сначала задайте конец напоминания.",
+                        "OK");
+
+                    return;
+                }
+
+                baseDateTime =
+                    end;
+
+                break;
+
+
+            default:
+                return;
         }
 
-        if (EndRadioButton.IsChecked)
-        {
-            targetDateTime = displayEnd;
-        }
 
-        if (VarRadioButton.IsChecked)
-        {
-            targetDateTime =
-                notificationTimes.Count > 0
-                    ? notificationTimes.Min(x => x.Time)
-                    : null;
-        }
+        // ========================================================
+        // ОПРЕДЕЛЯЕМ СМЕЩЕНИЕ
+        // ========================================================
 
-        if (targetDateTime is null)
-        {
-            string targetName =
-                StartRadioButton.IsChecked
-                    ? "начала"
-                    : EndRadioButton.IsChecked
-                        ? "конца"
-                        : "уведомления";
+        TimeSpan offset =
+            GetNotificationOffset();
 
-            await DisplayAlert(
-                "Ошибка",
-                $"Сначала выберите дату/время {targetName}.",
-                "OK");
 
-            return;
-        }
+        // ========================================================
+        // ЧЕРЕЗ / ЗА
+        // ========================================================
+
+        DateTime notificationTime =
+            notificationDirectionIndex == 0
+
+                ? baseDateTime + offset
+
+                : baseDateTime - offset;
+
 
         AddNotificationTime(
-            targetDateTime.Value - offset);
+            notificationTime);
+
+
+        NotificationAddOverlay.IsVisible =
+            false;
     }
 
 
-    private void OnNotificationTargetChanged(
-        object? sender,
-        CheckedChangedEventArgs e)
+    private TimeSpan GetNotificationOffset()
     {
-        if (!e.Value ||
-            sender is not RadioButton radioButton)
+        return notificationUnitIndex switch
+        {
+            // 0 = минуты
+            0 =>
+                TimeSpan.FromMinutes(
+                    notificationAmount),
+
+            // 1 = часы
+            1 =>
+                TimeSpan.FromHours(
+                    notificationAmount),
+
+            // 2 = дни
+            2 =>
+                TimeSpan.FromDays(
+                    notificationAmount),
+
+            _ =>
+                TimeSpan.Zero
+        };
+    }
+
+
+    // ============================================================
+    // КОГДА?
+    // ============================================================
+
+    private void OnNotificationNowClicked(
+        object? sender,
+        EventArgs e)
+    {
+        notificationReference =
+            NotificationReference.Now;
+
+        UpdateNotificationReferenceButtons();
+    }
+
+
+    private void OnNotificationStartClicked(
+        object? sender,
+        EventArgs e)
+    {
+        notificationReference =
+            NotificationReference.Start;
+
+        UpdateNotificationReferenceButtons();
+    }
+
+
+    private void OnNotificationEndClicked(
+        object? sender,
+        EventArgs e)
+    {
+        notificationReference =
+            NotificationReference.End;
+
+        UpdateNotificationReferenceButtons();
+    }
+
+
+    private void UpdateNotificationReferenceButtons()
+    {
+        bool isDark =
+            Application.Current?.RequestedTheme ==
+            AppTheme.Dark;
+
+
+        Color selectedBackground =
+            isDark
+                ? Color.FromArgb("#2A3A4A")
+                : Color.FromArgb("#DCE8F8");
+
+
+        Color normalBackground =
+            Colors.Transparent;
+
+
+        Color selectedTextColor =
+            isDark
+                ? Colors.White
+                : Color.FromArgb("#20242A");
+
+
+        Color normalTextColor =
+            isDark
+                ? Colors.White
+                : Color.FromArgb("#20242A");
+
+
+        NotificationNowButton.BackgroundColor =
+            notificationReference ==
+            NotificationReference.Now
+                ? selectedBackground
+                : normalBackground;
+
+
+        NotificationStartButton.BackgroundColor =
+            notificationReference ==
+            NotificationReference.Start
+                ? selectedBackground
+                : normalBackground;
+
+
+        NotificationEndButton.BackgroundColor =
+            notificationReference ==
+            NotificationReference.End
+                ? selectedBackground
+                : normalBackground;
+
+
+        NotificationNowButton.TextColor =
+            notificationReference ==
+            NotificationReference.Now
+                ? selectedTextColor
+                : normalTextColor;
+
+
+        NotificationStartButton.TextColor =
+            notificationReference ==
+            NotificationReference.Start
+                ? selectedTextColor
+                : normalTextColor;
+
+
+        NotificationEndButton.TextColor =
+            notificationReference ==
+            NotificationReference.End
+                ? selectedTextColor
+                : normalTextColor;
+
+
+        NotificationNowButton.FontAttributes =
+            notificationReference ==
+            NotificationReference.Now
+                ? FontAttributes.Bold
+                : FontAttributes.None;
+
+
+        NotificationStartButton.FontAttributes =
+            notificationReference ==
+            NotificationReference.Start
+                ? FontAttributes.Bold
+                : FontAttributes.None;
+
+
+        NotificationEndButton.FontAttributes =
+            notificationReference ==
+            NotificationReference.End
+                ? FontAttributes.Bold
+                : FontAttributes.None;
+    }
+
+
+    // ============================================================
+    // КОЛЕСО «ЧЕРЕЗ / ЗА»
+    // ============================================================
+
+    private void OnNotificationDirectionWheelScrolled(
+        object? sender,
+        ScrolledEventArgs e)
+    {
+        pendingNotificationDirectionIndex =
+            GetNotificationWheelIndex(
+                e.ScrollY,
+                2);
+
+
+        notificationDirectionIndex =
+            pendingNotificationDirectionIndex;
+
+
+        UpdateNotificationWheelVisuals();
+
+
+        if (!isNotificationWheelProgrammaticScroll)
+        {
+            notificationDirectionSnapCancellation?.Cancel();
+
+            notificationDirectionSnapCancellation =
+                new CancellationTokenSource();
+
+            _ = SnapNotificationDirectionAsync(
+                notificationDirectionSnapCancellation.Token);
+        }
+    }
+
+
+    private async Task SnapNotificationDirectionAsync(
+        CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(
+                120,
+                token);
+
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await SnapNotificationWheelAsync(
+                NotificationDirectionWheel,
+                pendingNotificationDirectionIndex,
+                token);
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+
+    // ============================================================
+    // КОЛЕСО ЧИСЛА 1..99
+    // ============================================================
+
+    private void OnNotificationAmountWheelScrolled(
+        object? sender,
+        ScrolledEventArgs e)
+    {
+        pendingNotificationAmount =
+            GetNotificationWheelIndex(
+                e.ScrollY,
+                99) + 1;
+
+
+        notificationAmount =
+            pendingNotificationAmount;
+
+
+        UpdateNotificationWheelVisuals();
+
+
+        if (!isNotificationWheelProgrammaticScroll)
+        {
+            notificationAmountSnapCancellation?.Cancel();
+
+            notificationAmountSnapCancellation =
+                new CancellationTokenSource();
+
+            _ = SnapNotificationAmountAsync(
+                notificationAmountSnapCancellation.Token);
+        }
+    }
+
+
+    private async Task SnapNotificationAmountAsync(
+        CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(
+                120,
+                token);
+
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await SnapNotificationWheelAsync(
+                NotificationAmountWheel,
+                pendingNotificationAmount - 1,
+                token);
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+
+    // ============================================================
+    // КОЛЕСО ЕДИНИЦЫ
+    // ============================================================
+
+    private void OnNotificationUnitWheelScrolled(
+        object? sender,
+        ScrolledEventArgs e)
+    {
+        pendingNotificationUnitIndex =
+            GetNotificationWheelIndex(
+                e.ScrollY,
+                3);
+
+
+        notificationUnitIndex =
+            pendingNotificationUnitIndex;
+
+
+        UpdateNotificationWheelVisuals();
+
+
+        if (!isNotificationWheelProgrammaticScroll)
+        {
+            notificationUnitSnapCancellation?.Cancel();
+
+            notificationUnitSnapCancellation =
+                new CancellationTokenSource();
+
+            _ = SnapNotificationUnitAsync(
+                notificationUnitSnapCancellation.Token);
+        }
+    }
+
+
+    private async Task SnapNotificationUnitAsync(
+        CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(
+                120,
+                token);
+
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await SnapNotificationWheelAsync(
+                NotificationUnitWheel,
+                pendingNotificationUnitIndex,
+                token);
+        }
+        catch (TaskCanceledException)
+        {
+        }
+    }
+
+
+    // ============================================================
+    // ОБЩИЕ МЕТОДЫ КОЛЁС ОПОВЕЩЕНИЙ
+    // ============================================================
+
+    private static int GetNotificationWheelIndex(
+        double scrollY,
+        int count)
+    {
+        int index =
+            (int)Math.Round(
+                scrollY /
+                NotificationWheelItemHeight);
+
+        return Math.Clamp(
+            index,
+            0,
+            count - 1);
+    }
+
+
+    private async Task SnapNotificationWheelAsync(
+        ScrollView wheel,
+        int index,
+        CancellationToken token)
+    {
+        if (token.IsCancellationRequested)
         {
             return;
         }
 
-        selectedBoundary =
-            radioButton == EndRadioButton
-                ? DisplayBoundary.End
-                : DisplayBoundary.Start;
+        double targetY =
+            index *
+            NotificationWheelItemHeight;
+
+
+        isNotificationWheelProgrammaticScroll =
+            true;
+
+
+        try
+        {
+            await wheel.ScrollToAsync(
+                0,
+                targetY,
+                true);
+        }
+        finally
+        {
+            isNotificationWheelProgrammaticScroll =
+                false;
+        }
     }
 
+
+    private void UpdateNotificationWheelVisuals()
+    {
+        UpdateNotificationWheelVisuals(
+            NotificationDirectionWheelLayout,
+            pendingNotificationDirectionIndex);
+
+
+        UpdateNotificationWheelVisuals(
+            NotificationAmountWheelLayout,
+            pendingNotificationAmount - 1);
+
+
+        UpdateNotificationWheelVisuals(
+            NotificationUnitWheelLayout,
+            pendingNotificationUnitIndex);
+    }
+
+
+    private static void UpdateNotificationWheelVisuals(
+        VerticalStackLayout layout,
+        int selectedIndex)
+    {
+        for (int i = 0;
+             i < layout.Children.Count;
+             i++)
+        {
+            if (layout.Children[i]
+                is not Label label)
+            {
+                continue;
+            }
+
+
+            // Первый элемент — верхний spacer.
+            int valueIndex =
+                i - 1;
+
+
+            if (valueIndex < 0)
+            {
+                continue;
+            }
+
+
+            double distance =
+                Math.Abs(
+                    valueIndex -
+                    selectedIndex);
+
+
+            if (valueIndex == selectedIndex)
+            {
+                label.FontSize =
+                    38;
+
+                label.FontAttributes =
+                    FontAttributes.Bold;
+
+                label.TextColor =
+                    Colors.White;
+
+                label.Opacity =
+                    1.0;
+            }
+            else if (distance == 1)
+            {
+                label.FontSize =
+                    34;
+
+                label.FontAttributes =
+                    FontAttributes.None;
+
+                label.TextColor =
+                    Color.FromArgb("#737C86");
+
+                label.Opacity =
+                    0.9;
+            }
+            else if (distance == 2)
+            {
+                label.FontSize =
+                    30;
+
+                label.FontAttributes =
+                    FontAttributes.None;
+
+                label.TextColor =
+                    Color.FromArgb("#525A63");
+
+                label.Opacity =
+                    0.65;
+            }
+            else
+            {
+                label.FontSize =
+                    28;
+
+                label.FontAttributes =
+                    FontAttributes.None;
+
+                label.TextColor =
+                    Color.FromArgb("#414850");
+
+                label.Opacity =
+                    0.35;
+            }
+        }
+    }
+
+
+    // ============================================================
+    // СОЗДАНИЕ КОЛЁС ОПОВЕЩЕНИЙ
+    // ============================================================
+
+    private void InitializeNotificationWheels()
+    {
+        CreateNotificationWheel(
+            NotificationDirectionWheelLayout,
+            new[]
+            {
+                "Чер",
+                "За",
+            });
+
+
+        CreateNotificationWheel(
+            NotificationAmountWheelLayout,
+            Enumerable.Range(1, 99)
+                .Select(
+                    x => x.ToString())
+                .ToArray());
+
+
+        CreateNotificationWheel(
+            NotificationUnitWheelLayout,
+            new[]
+            {
+                "Мин",
+                "Час",
+                "Ден",
+            });
+
+
+        pendingNotificationDirectionIndex =
+            0;
+
+        pendingNotificationAmount =
+            1;
+
+        pendingNotificationUnitIndex =
+            1;
+
+
+        UpdateNotificationWheelVisuals();
+    }
+
+
+    private static void CreateNotificationWheel(
+        VerticalStackLayout layout,
+        IReadOnlyList<string> values)
+    {
+        // Верхний spacer.
+        // Высота 90 подходит для колеса 240 px.
+        layout.Children.Add(
+            new BoxView
+            {
+                HeightRequest =
+                    NotificationWheelTopPadding,
+
+                InputTransparent =
+                    true
+            });
+
+
+        foreach (string value in values)
+        {
+            Label label =
+                new()
+                {
+                    Text =
+                        value,
+
+                    HeightRequest =
+                        NotificationWheelItemHeight,
+
+                    FontSize =
+                        34,
+
+                    HorizontalTextAlignment =
+                        TextAlignment.Center,
+
+                    VerticalTextAlignment =
+                        TextAlignment.Center,
+
+                    TextColor =
+                        Color.FromArgb("#646D77"),
+
+                    InputTransparent =
+                        true
+                };
+
+
+            layout.Children.Add(
+                label);
+        }
+
+
+        // Нижний spacer.
+        layout.Children.Add(
+            new BoxView
+            {
+                HeightRequest =
+                    NotificationWheelTopPadding,
+
+                InputTransparent =
+                    true
+            });
+    }
+
+
+    // ============================================================
+    // ДОБАВЛЕНИЕ / УДАЛЕНИЕ ОПОВЕЩЕНИЙ
+    // ============================================================
 
     private void AddNotificationTime(
         DateTime notificationTime)
@@ -649,7 +1550,8 @@ public partial class ReminderEditorPage : ContentPage
             item.PropertyChanged +=
                 OnNotificationTimeItemChanged;
 
-            notificationTimes.Add(item);
+            notificationTimes.Add(
+                item);
 
             SortNotifications();
 
@@ -663,12 +1565,14 @@ public partial class ReminderEditorPage : ContentPage
         EventArgs e)
     {
         if (sender is Button button &&
-            button.CommandParameter is NotificationTimeItem item)
+            button.CommandParameter
+                is NotificationTimeItem item)
         {
             item.PropertyChanged -=
                 OnNotificationTimeItemChanged;
 
-            notificationTimes.Remove(item);
+            notificationTimes.Remove(
+                item);
 
             RequestAutoSave();
         }
@@ -680,9 +1584,11 @@ public partial class ReminderEditorPage : ContentPage
         TappedEventArgs e)
     {
         if (sender is Label label &&
-            label.BindingContext is NotificationTimeItem item)
+            label.BindingContext
+                is NotificationTimeItem item)
         {
-            editingNotification = item;
+            editingNotification =
+                item;
 
             ShowDateTimePicker(
                 item.Time,
@@ -706,11 +1612,15 @@ public partial class ReminderEditorPage : ContentPage
                 .OrderBy(x => x.Time)
                 .ToList();
 
+
         notificationTimes.Clear();
 
-        foreach (NotificationTimeItem item in sorted)
+
+        foreach (NotificationTimeItem item
+                 in sorted)
         {
-            notificationTimes.Add(item);
+            notificationTimes.Add(
+                item);
         }
     }
 
@@ -728,7 +1638,8 @@ public partial class ReminderEditorPage : ContentPage
             return;
         }
 
-        autoCompleteOnDisplayEnd = e.Value;
+        autoCompleteOnDisplayEnd =
+            e.Value;
 
         RequestAutoSave();
     }
@@ -742,20 +1653,25 @@ public partial class ReminderEditorPage : ContentPage
         bool hasDisplayStart =
             displayStart is not null;
 
+
         AutoCompleteCheckBox.IsVisible =
             hasDisplayEnd;
 
         AutoCompleteLabel.IsVisible =
             hasDisplayEnd;
 
+
         DisplayPeriodGrid.IsVisible =
             hasDisplayEnd ||
             hasDisplayStart;
 
+
         if (!hasDisplayEnd)
         {
-            autoCompleteOnDisplayEnd = false;
+            autoCompleteOnDisplayEnd =
+                false;
         }
+
 
         AutoCompleteCheckBox.IsChecked =
             hasDisplayEnd &&
@@ -780,8 +1696,13 @@ public partial class ReminderEditorPage : ContentPage
     {
         base.OnAppearing();
 
-        UpdateTimerFromDisplayEnd();
-        countdownTimer.Start();
+        UpdateTimerFromCurrentTarget();
+
+
+        if (!countdownTimer.IsRunning)
+        {
+            countdownTimer.Start();
+        }
     }
 
 
@@ -790,11 +1711,24 @@ public partial class ReminderEditorPage : ContentPage
         base.OnDisappearing();
 
         countdownTimer.Stop();
+
+
         autoSaveCancellation?.Cancel();
 
+
         daysSnapCancellation?.Cancel();
+
         hoursSnapCancellation?.Cancel();
+
         minutesSnapCancellation?.Cancel();
+
+
+        notificationDirectionSnapCancellation?.Cancel();
+
+        notificationAmountSnapCancellation?.Cancel();
+
+        notificationUnitSnapCancellation?.Cancel();
+
 
         if (!isDeleting)
         {
@@ -804,7 +1738,7 @@ public partial class ReminderEditorPage : ContentPage
 
 
     // ============================================================
-    // БЫСТРЫЕ КНОПКИ ВРЕМЕНИ
+    // БЫСТРЫЕ КНОПКИ ДАТЫ / ВРЕМЕНИ
     // ============================================================
 
     private void settime900(
@@ -865,27 +1799,127 @@ public partial class ReminderEditorPage : ContentPage
     // ТАЙМЕР
     // ============================================================
 
+    private DateTime? GetCurrentTimerTarget()
+    {
+        if (DateTimePickerOverlay.IsVisible)
+        {
+            return
+                OverlayDatePicker.Date +
+                OverlayTimePicker.Time;
+        }
+
+
+        if (editingNotification is not null)
+        {
+            return editingNotification.Time;
+        }
+
+
+        return selectedBoundary ==
+               DisplayBoundary.Start
+
+            ? displayStart
+
+            : displayEnd;
+    }
+
+
+    private DateTime? GetSelectedBoundaryDateTime()
+    {
+        return selectedBoundary ==
+               DisplayBoundary.Start
+
+            ? displayStart
+
+            : displayEnd;
+    }
+
+
+    private void UpdateTimerFromCurrentTarget()
+    {
+        DateTime? target =
+            GetCurrentTimerTarget();
+
+
+        if (target is null)
+        {
+            SetTimerDisplay(
+                TimeSpan.Zero);
+
+            return;
+        }
+
+
+        UpdateTimerDisplay(
+            target.Value -
+            DateTime.Now);
+    }
+
+
+    private void UpdateTimerFromDateTimePicker()
+    {
+        DateTime selectedDateTime =
+            OverlayDatePicker.Date +
+            OverlayTimePicker.Time;
+
+
+        UpdateTimerDisplay(
+            selectedDateTime -
+            DateTime.Now);
+    }
+
+
+    private void UpdateTimerFromSelectedBoundary()
+    {
+        DateTime? target =
+            GetSelectedBoundaryDateTime();
+
+
+        if (target is null)
+        {
+            SetTimerDisplay(
+                TimeSpan.Zero);
+
+            return;
+        }
+
+
+        UpdateTimerDisplay(
+            target.Value -
+            DateTime.Now);
+    }
+
+
+    // ============================================================
+    // СОЗДАНИЕ КОЛЁС ТАЙМЕРА
+    // ============================================================
+
     private void InitializeTimerWheels()
     {
         CreateWheel(
             DaysWheelLayout,
             100);
 
+
         CreateWheel(
             HoursWheelLayout,
             24);
+
 
         CreateWheel(
             MinutesWheelLayout,
             60);
 
+
         UpdateWheelVisuals(
             DaysWheelLayout,
             timerDays);
 
+
         UpdateWheelVisuals(
             HoursWheelLayout,
             timerHours);
+
 
         UpdateWheelVisuals(
             MinutesWheelLayout,
@@ -897,52 +1931,60 @@ public partial class ReminderEditorPage : ContentPage
         VerticalStackLayout layout,
         int count)
     {
-        // Верхнее пустое пространство.
-        // Благодаря ему первый элемент тоже может оказаться
-        // точно в центре колеса.
-
         layout.Children.Add(
             new BoxView
             {
-                HeightRequest = TimerWheelTopPadding,
-                InputTransparent = true
+                HeightRequest =
+                    TimerWheelTopPadding,
+
+                InputTransparent =
+                    true
             });
 
 
-        for (int i = 0; i < count; i++)
+        for (int i = 0;
+             i < count;
+             i++)
         {
-            Label label = new()
-            {
-                Text = i.ToString("00"),
+            Label label =
+                new()
+                {
+                    Text =
+                        i.ToString("00"),
 
-                HeightRequest =
-                    TimerWheelItemHeight,
+                    HeightRequest =
+                        TimerWheelItemHeight,
 
-                FontSize = 34,
+                    FontSize =
+                        34,
 
-                HorizontalTextAlignment =
-                    TextAlignment.Center,
+                    HorizontalTextAlignment =
+                        TextAlignment.Center,
 
-                VerticalTextAlignment =
-                    TextAlignment.Center,
+                    VerticalTextAlignment =
+                        TextAlignment.Center,
 
-                TextColor =
-                    Color.FromArgb("#646D77"),
+                    TextColor =
+                        Color.FromArgb("#646D77"),
 
-                InputTransparent = true
-            };
+                    InputTransparent =
+                        true
+                };
 
-            layout.Children.Add(label);
+
+            layout.Children.Add(
+                label);
         }
 
-
-        // Нижнее пустое пространство.
 
         layout.Children.Add(
             new BoxView
             {
-                HeightRequest = TimerWheelTopPadding,
-                InputTransparent = true
+                HeightRequest =
+                    TimerWheelTopPadding,
+
+                InputTransparent =
+                    true
             });
     }
 
@@ -953,7 +1995,9 @@ public partial class ReminderEditorPage : ContentPage
     {
         int index =
             (int)Math.Round(
-                scrollY / TimerWheelItemHeight);
+                scrollY /
+                TimerWheelItemHeight);
+
 
         return Math.Clamp(
             index,
@@ -970,27 +2014,33 @@ public partial class ReminderEditorPage : ContentPage
              i < layout.Children.Count;
              i++)
         {
-            if (layout.Children[i] is not Label label)
+            if (layout.Children[i]
+                is not Label label)
             {
                 continue;
             }
 
-            // Первый элемент StackLayout — верхний spacer.
-            int valueIndex = i - 1;
+
+            int valueIndex =
+                i - 1;
+
 
             if (valueIndex < 0)
             {
                 continue;
             }
 
+
             double distance =
                 Math.Abs(
-                    valueIndex - selectedIndex);
+                    valueIndex -
+                    selectedIndex);
 
 
             if (valueIndex == selectedIndex)
             {
-                label.FontSize = 38;
+                label.FontSize =
+                    38;
 
                 label.FontAttributes =
                     FontAttributes.Bold;
@@ -998,11 +2048,13 @@ public partial class ReminderEditorPage : ContentPage
                 label.TextColor =
                     Colors.White;
 
-                label.Opacity = 1.0;
+                label.Opacity =
+                    1.0;
             }
             else if (distance == 1)
             {
-                label.FontSize = 34;
+                label.FontSize =
+                    34;
 
                 label.FontAttributes =
                     FontAttributes.None;
@@ -1010,11 +2062,13 @@ public partial class ReminderEditorPage : ContentPage
                 label.TextColor =
                     Color.FromArgb("#737C86");
 
-                label.Opacity = 0.9;
+                label.Opacity =
+                    0.9;
             }
             else if (distance == 2)
             {
-                label.FontSize = 30;
+                label.FontSize =
+                    30;
 
                 label.FontAttributes =
                     FontAttributes.None;
@@ -1022,11 +2076,13 @@ public partial class ReminderEditorPage : ContentPage
                 label.TextColor =
                     Color.FromArgb("#525A63");
 
-                label.Opacity = 0.65;
+                label.Opacity =
+                    0.65;
             }
             else
             {
-                label.FontSize = 28;
+                label.FontSize =
+                    28;
 
                 label.FontAttributes =
                     FontAttributes.None;
@@ -1034,7 +2090,8 @@ public partial class ReminderEditorPage : ContentPage
                 label.TextColor =
                     Color.FromArgb("#414850");
 
-                label.Opacity = 0.35;
+                label.Opacity =
+                    0.35;
             }
         }
     }
@@ -1053,9 +2110,11 @@ public partial class ReminderEditorPage : ContentPage
                 e.ScrollY,
                 100);
 
+
         UpdateWheelVisuals(
             DaysWheelLayout,
             pendingTimerDays);
+
 
         if (!isTimerWheelProgrammaticScroll)
         {
@@ -1063,58 +2122,6 @@ public partial class ReminderEditorPage : ContentPage
         }
     }
 
-
-    // ============================================================
-    // ПРОКРУТКА ЧАСОВ
-    // ============================================================
-
-    private void OnHoursWheelScrolled(
-        object? sender,
-        ScrolledEventArgs e)
-    {
-        pendingTimerHours =
-            GetSelectedWheelIndex(
-                e.ScrollY,
-                24);
-
-        UpdateWheelVisuals(
-            HoursWheelLayout,
-            pendingTimerHours);
-
-        if (!isTimerWheelProgrammaticScroll)
-        {
-            ScheduleHoursSnap();
-        }
-    }
-
-
-    // ============================================================
-    // ПРОКРУТКА МИНУТ
-    // ============================================================
-
-    private void OnMinutesWheelScrolled(
-        object? sender,
-        ScrolledEventArgs e)
-    {
-        pendingTimerMinutes =
-            GetSelectedWheelIndex(
-                e.ScrollY,
-                60);
-
-        UpdateWheelVisuals(
-            MinutesWheelLayout,
-            pendingTimerMinutes);
-
-        if (!isTimerWheelProgrammaticScroll)
-        {
-            ScheduleMinutesSnap();
-        }
-    }
-
-
-    // ============================================================
-    // SNAP ДНЕЙ
-    // ============================================================
 
     private void ScheduleDaysSnap()
     {
@@ -1137,10 +2144,12 @@ public partial class ReminderEditorPage : ContentPage
                 120,
                 token);
 
+
             if (token.IsCancellationRequested)
             {
                 return;
             }
+
 
             await SnapWheelAsync(
                 DaysWheel,
@@ -1154,8 +2163,30 @@ public partial class ReminderEditorPage : ContentPage
 
 
     // ============================================================
-    // SNAP ЧАСОВ
+    // ПРОКРУТКА ЧАСОВ
     // ============================================================
+
+    private void OnHoursWheelScrolled(
+        object? sender,
+        ScrolledEventArgs e)
+    {
+        pendingTimerHours =
+            GetSelectedWheelIndex(
+                e.ScrollY,
+                24);
+
+
+        UpdateWheelVisuals(
+            HoursWheelLayout,
+            pendingTimerHours);
+
+
+        if (!isTimerWheelProgrammaticScroll)
+        {
+            ScheduleHoursSnap();
+        }
+    }
+
 
     private void ScheduleHoursSnap()
     {
@@ -1178,10 +2209,12 @@ public partial class ReminderEditorPage : ContentPage
                 120,
                 token);
 
+
             if (token.IsCancellationRequested)
             {
                 return;
             }
+
 
             await SnapWheelAsync(
                 HoursWheel,
@@ -1195,8 +2228,30 @@ public partial class ReminderEditorPage : ContentPage
 
 
     // ============================================================
-    // SNAP МИНУТ
+    // ПРОКРУТКА МИНУТ
     // ============================================================
+
+    private void OnMinutesWheelScrolled(
+        object? sender,
+        ScrolledEventArgs e)
+    {
+        pendingTimerMinutes =
+            GetSelectedWheelIndex(
+                e.ScrollY,
+                60);
+
+
+        UpdateWheelVisuals(
+            MinutesWheelLayout,
+            pendingTimerMinutes);
+
+
+        if (!isTimerWheelProgrammaticScroll)
+        {
+            ScheduleMinutesSnap();
+        }
+    }
+
 
     private void ScheduleMinutesSnap()
     {
@@ -1219,10 +2274,12 @@ public partial class ReminderEditorPage : ContentPage
                 120,
                 token);
 
+
             if (token.IsCancellationRequested)
             {
                 return;
             }
+
 
             await SnapWheelAsync(
                 MinutesWheel,
@@ -1236,7 +2293,7 @@ public partial class ReminderEditorPage : ContentPage
 
 
     // ============================================================
-    // ОБЩИЙ SNAP
+    // ОБЩИЙ SNAP ТАЙМЕРА
     // ============================================================
 
     private async Task SnapWheelAsync(
@@ -1249,10 +2306,15 @@ public partial class ReminderEditorPage : ContentPage
             return;
         }
 
-        double targetY =
-            index * TimerWheelItemHeight;
 
-        isTimerWheelProgrammaticScroll = true;
+        double targetY =
+            index *
+            TimerWheelItemHeight;
+
+
+        isTimerWheelProgrammaticScroll =
+            true;
+
 
         try
         {
@@ -1263,7 +2325,8 @@ public partial class ReminderEditorPage : ContentPage
         }
         finally
         {
-            isTimerWheelProgrammaticScroll = false;
+            isTimerWheelProgrammaticScroll =
+                false;
         }
     }
 
@@ -1276,17 +2339,29 @@ public partial class ReminderEditorPage : ContentPage
         object? sender,
         TappedEventArgs e)
     {
-        UpdateTimerFromDisplayEnd();
+        UpdateTimerFromCurrentTarget();
 
-        pendingTimerDays = timerDays;
-        pendingTimerHours = timerHours;
-        pendingTimerMinutes = timerMinutes;
 
-        TimerDurationOverlay.IsVisible = true;
+        pendingTimerDays =
+            timerDays;
+
+        pendingTimerHours =
+            timerHours;
+
+        pendingTimerMinutes =
+            timerMinutes;
+
+
+        TimerDurationOverlay.IsVisible =
+            true;
+
 
         await Task.Delay(50);
 
-        isTimerWheelProgrammaticScroll = true;
+
+        isTimerWheelProgrammaticScroll =
+            true;
+
 
         try
         {
@@ -1296,11 +2371,13 @@ public partial class ReminderEditorPage : ContentPage
                     TimerWheelItemHeight,
                 false);
 
+
             await HoursWheel.ScrollToAsync(
                 0,
                 pendingTimerHours *
                     TimerWheelItemHeight,
                 false);
+
 
             await MinutesWheel.ScrollToAsync(
                 0,
@@ -1310,16 +2387,20 @@ public partial class ReminderEditorPage : ContentPage
         }
         finally
         {
-            isTimerWheelProgrammaticScroll = false;
+            isTimerWheelProgrammaticScroll =
+                false;
         }
+
 
         UpdateWheelVisuals(
             DaysWheelLayout,
             pendingTimerDays);
 
+
         UpdateWheelVisuals(
             HoursWheelLayout,
             pendingTimerHours);
+
 
         UpdateWheelVisuals(
             MinutesWheelLayout,
@@ -1335,31 +2416,123 @@ public partial class ReminderEditorPage : ContentPage
         object? sender,
         EventArgs e)
     {
-        TimeSpan duration = new(
-            pendingTimerDays,
-            pendingTimerHours,
-            pendingTimerMinutes,
-            0);
+        TimeSpan duration =
+            new(
+                pendingTimerDays,
+                pendingTimerHours,
+                pendingTimerMinutes,
+                0);
 
-        // Таймер — это только представление даты окончания, поэтому при его
-        // изменении переносим дату окончания на указанное время от текущей минуты.
-        displayEnd = GetCurrentMinute().Add(duration);
-        selectedBoundary = DisplayBoundary.End;
 
-        isUpdatingPickers = true;
-        OverlayDatePicker.Date = displayEnd.Value.Date;
-        OverlayTimePicker.Time = displayEnd.Value.TimeOfDay;
-        isUpdatingPickers = false;
+        DateTime targetDateTime =
+            GetCurrentMinute()
+                .Add(duration);
+
+
+        // ========================================================
+        // NotificationTimeItem
+        // ========================================================
+
+        if (editingNotification is not null)
+        {
+            editingNotification.Time =
+                targetDateTime;
+
+
+            SortNotifications();
+
+
+            NotificationTimesCollectionView.ItemsSource =
+                null;
+
+
+            NotificationTimesCollectionView.ItemsSource =
+                notificationTimes;
+
+
+            isUpdatingPickers =
+                true;
+
+
+            OverlayDatePicker.Date =
+                targetDateTime.Date;
+
+
+            OverlayTimePicker.Time =
+                targetDateTime.TimeOfDay;
+
+
+            isUpdatingPickers =
+                false;
+
+
+            UpdateSelectedDateTimeLabels();
+
+            UpdateTimerFromCurrentTarget();
+
+            RequestAutoSave();
+
+
+            TimerDurationOverlay.IsVisible =
+                false;
+
+
+            return;
+        }
+
+
+        // ========================================================
+        // Start / End
+        // ========================================================
+
+        if (selectedBoundary ==
+            DisplayBoundary.Start)
+        {
+            displayStart =
+                targetDateTime;
+        }
+        else
+        {
+            displayEnd =
+                targetDateTime;
+        }
+
+
+        isUpdatingPickers =
+            true;
+
+
+        OverlayDatePicker.Date =
+            targetDateTime.Date;
+
+
+        OverlayTimePicker.Time =
+            targetDateTime.TimeOfDay;
+
+
+        isUpdatingPickers =
+            false;
+
 
         UpdateSelectedDateTimeLabels();
+
         UpdateDisplayPeriodLabel();
+
         UpdateAutoCompleteControls();
-        UpdateTimerFromDisplayEnd();
+
+        UpdateTimerFromCurrentTarget();
+
         RequestAutoSave();
 
-        TimerDurationOverlay.IsVisible = false;
+
+        TimerDurationOverlay.IsVisible =
+            false;
     }
 
+
+    // ============================================================
+    // ОБНОВЛЕНИЕ ТАЙМЕРА
+    // ============================================================
 
     private void OnCountdownTimerTick(
         object? sender,
@@ -1368,65 +2541,172 @@ public partial class ReminderEditorPage : ContentPage
         if (DateTimePickerOverlay.IsVisible)
         {
             UpdateTimerFromDateTimePicker();
+
             return;
         }
 
-        UpdateTimerFromDisplayEnd();
+
+        UpdateTimerFromCurrentTarget();
     }
 
 
-    private void UpdateTimerFromDateTimePicker()
+    private void UpdateTimerDisplay(
+        TimeSpan remaining)
     {
-        // Date/time picker changes are only a preview until the user saves
-        // them. Reflect an edited end date in the visual-only timer without
-        // changing the reminder or affecting notification scheduling.
-        if (editingNotification is not null ||
-            selectedBoundary != DisplayBoundary.End)
+        if (remaining < TimeSpan.Zero)
         {
-            UpdateTimerFromDisplayEnd();
+            TimeSpan elapsed =
+                remaining.Duration();
+
+            TimeSpan roundedElapsed =
+                TimeSpan.FromMinutes(
+                    Math.Floor(
+                        elapsed.TotalMinutes));
+
+            SetTimerDisplay(
+                roundedElapsed,
+                true);
+
             return;
         }
 
-        DateTime selectedEnd =
-            OverlayDatePicker.Date + OverlayTimePicker.Time;
 
-        UpdateTimerDisplay(selectedEnd - DateTime.Now);
+        TimeSpan roundedRemaining =
+            TimeSpan.FromMinutes(
+                Math.Ceiling(
+                    remaining.TotalMinutes));
+
+
+        SetTimerDisplay(
+            roundedRemaining,
+            false);
     }
 
 
-    private void UpdateTimerFromDisplayEnd()
+    // ============================================================
+    // СБРОС START / END
+    // ============================================================
+
+    private void OnResetDateTimeClicked(
+        object? sender,
+        EventArgs e)
     {
-        if (displayEnd is null)
+        // --------------------------------------------------------
+        // Сброс начала
+        // --------------------------------------------------------
+
+        if (selectedBoundary ==
+            DisplayBoundary.Start)
         {
-            SetTimerDisplay(TimeSpan.Zero);
-            return;
+            displayStart =
+                null;
+
+
+            DateTime initialDate;
+            TimeSpan initialTime;
+
+
+            if (displayEnd is DateTime savedEnd)
+            {
+                initialDate =
+                    savedEnd.Date.AddDays(-1);
+
+                initialTime =
+                    TimeSpan.Zero;
+            }
+            else
+            {
+                initialDate =
+                    DateTime.Today;
+
+                initialTime =
+                    TimeSpan.Zero;
+            }
+
+
+            isUpdatingPickers =
+                true;
+
+
+            OverlayDatePicker.Date =
+                initialDate;
+
+
+            OverlayTimePicker.Time =
+                initialTime;
+
+
+            isUpdatingPickers =
+                false;
         }
 
-        UpdateTimerDisplay(displayEnd.Value - DateTime.Now);
-    }
 
+        // --------------------------------------------------------
+        // Сброс конца
+        // --------------------------------------------------------
 
-    private void UpdateTimerDisplay(TimeSpan remaining)
-    {
-
-        if (remaining <= TimeSpan.Zero)
+        else
         {
-            SetTimerDisplay(TimeSpan.Zero);
-            return;
+            displayEnd =
+                null;
+
+
+            DateTime initialDate;
+            TimeSpan initialTime;
+
+
+            if (displayStart is DateTime savedStart)
+            {
+                initialDate =
+                    savedStart.Date.AddDays(1);
+
+                initialTime =
+                    new TimeSpan(23, 0, 0);
+            }
+            else
+            {
+                initialDate =
+                    DateTime.Today.AddDays(1);
+
+                initialTime =
+                    new TimeSpan(23, 0, 0);
+            }
+
+
+            isUpdatingPickers =
+                true;
+
+
+            OverlayDatePicker.Date =
+                initialDate;
+
+
+            OverlayTimePicker.Time =
+                initialTime;
+
+
+            isUpdatingPickers =
+                false;
         }
 
-        // Колесо задаёт время с точностью до минуты. Округление вверх не
-        // позволяет показывать на минуту меньше сразу после обновления.
-        TimeSpan roundedRemaining = TimeSpan.FromMinutes(
-            Math.Ceiling(remaining.TotalMinutes));
 
-        SetTimerDisplay(roundedRemaining);
+        UpdateSelectedDateTimeLabels();
+
+        UpdateDisplayPeriodLabel();
+
+        UpdateAutoCompleteControls();
+
+        UpdateTimerFromDateTimePicker();
+
+        RequestAutoSave();
     }
 
 
     private static DateTime GetCurrentMinute()
     {
-        DateTime now = DateTime.Now;
+        DateTime now =
+            DateTime.Now;
+
 
         return new DateTime(
             now.Year,
@@ -1439,13 +2719,60 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
-    private void SetTimerDisplay(TimeSpan duration)
+    private void SetTimerDisplay(
+        TimeSpan duration,
+        bool isExpired = false)
     {
-        timerDays = duration.Days;
-        timerHours = duration.Hours;
-        timerMinutes = duration.Minutes;
+        timerDays =
+            duration.Days;
 
-        UpdateTimerDisplay();
+        timerHours =
+            duration.Hours;
+
+        timerMinutes =
+            duration.Minutes;
+
+
+        TimerDaysDisplayLabel.Text =
+            timerDays.ToString("00");
+
+        TimerHoursDisplayLabel.Text =
+            timerHours.ToString("00");
+
+        TimerMinutesDisplayLabel.Text =
+            timerMinutes.ToString("00");
+
+
+        TimerElapsedSignLabel.IsVisible =
+            isExpired;
+
+
+        Color normalColor =
+            Application.Current?.RequestedTheme ==
+            AppTheme.Dark
+
+                ? TimerNormalDarkColor
+
+                : TimerNormalLightColor;
+
+
+        Color displayColor =
+            isExpired
+                ? TimerExpiredColor
+                : normalColor;
+
+
+        TimerDaysDisplayLabel.TextColor =
+            displayColor;
+
+        TimerHoursDisplayLabel.TextColor =
+            displayColor;
+
+        TimerMinutesDisplayLabel.TextColor =
+            displayColor;
+
+        TimerElapsedSignLabel.TextColor =
+            displayColor;
     }
 
 

@@ -49,11 +49,24 @@ public class NotificationTimeItem : INotifyPropertyChanged
     public string DisplayText =>
         ReminderDisplayFormatter.FormatNotificationTime(Time);
 
+    // Создание НОВОГО оповещения.
+    // Настройки по умолчанию:
+    // Overlay = включён
+    // Push    = выключен
+    // Alarm   = выключен
     public NotificationTimeItem(DateTime time)
-        : this(new NotificationTimeSettings { Time = time })
+        : this(new NotificationTimeSettings
+        {
+            Time = time,
+            IsOverlayEnabled = true,
+            IsPushEnabled = false,
+            IsAlarmEnabled = false
+        })
     {
     }
 
+    // Создание из уже сохранённых настроек.
+    // Здесь настройки НЕ изменяются.
     public NotificationTimeItem(NotificationTimeSettings settings)
     {
         time = settings.Time;
@@ -70,7 +83,10 @@ public class NotificationTimeItem : INotifyPropertyChanged
         IsAlarmEnabled = IsAlarmEnabled,
     };
 
-    private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private bool SetProperty<T>(
+        ref T field,
+        T value,
+        [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
@@ -82,6 +98,9 @@ public class NotificationTimeItem : INotifyPropertyChanged
         return true;
     }
 
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    private void OnPropertyChanged(
+        [CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(
+            this,
+            new PropertyChangedEventArgs(propertyName));
 }
