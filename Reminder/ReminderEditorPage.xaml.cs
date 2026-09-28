@@ -74,7 +74,7 @@ public partial class ReminderEditorPage : ContentPage
 
     private bool isAutoSaveEnabled = false;
 
-    private bool isDeleting;
+    private bool isClosing;
 
 
     // ============================================================
@@ -144,7 +144,7 @@ public partial class ReminderEditorPage : ContentPage
     // СОБЫТИЯ
     // ============================================================
 
-    public event EventHandler<ReminderItem>? SaveRequested;
+    public event Func<ReminderItem, Task>? SaveRequested;
 
     public event EventHandler? DeleteRequested;
 
@@ -581,25 +581,15 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
-    private void RequestSave()
+    private Task NotifySaveRequestedAsync(
+        ReminderItem editedReminder)
     {
-        if (isInitializing)
-        {
-            return;
-        }
+        Func<ReminderItem, Task>? saveRequested =
+            SaveRequested;
 
-        string text =
-            ReminderTextEditor.Text?.Trim()
-            ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return;
-        }
-
-        SaveRequested?.Invoke(
-            this,
-            CreateReminderForSave(text));
+        return saveRequested is null
+            ? Task.CompletedTask
+            : saveRequested(editedReminder);
     }
 
 
@@ -690,8 +680,7 @@ public partial class ReminderEditorPage : ContentPage
         MainThread.BeginInvokeOnMainThread(
             () =>
             {
-                SaveRequested?.Invoke(
-                    this,
+                _ = NotifySaveRequestedAsync(
                     CreateReminderForSave(text));
             });
     }
@@ -706,7 +695,7 @@ public partial class ReminderEditorPage : ContentPage
             return;
         }
 
-        isDeleting =
+        isClosing =
             true;
 
         DeleteRequested?.Invoke(
@@ -740,17 +729,7 @@ public partial class ReminderEditorPage : ContentPage
             return;
         }
 
-        ReminderItem savedReminder =
-            CreateReminderForSave(text);
-
-        SaveRequested?.Invoke(
-            this,
-            savedReminder);
-
-        isDeleting =
-            true;
-
-        await Navigation.PopModalAsync();
+        await SaveAndCloseAsync(text);
     }
 
 
@@ -1917,9 +1896,49 @@ public partial class ReminderEditorPage : ContentPage
         notificationUnitSnapCancellation?.Cancel();
 
 
-        if (!isDeleting)
+    }
+
+
+    protected override bool OnBackButtonPressed()
+    {
+        _ = SaveAndCloseAsync(
+            ReminderTextEditor.Text?.Trim()
+            ?? string.Empty);
+
+        return true;
+    }
+
+
+    private async Task SaveAndCloseAsync(
+        string text)
+    {
+        if (isClosing)
         {
-            RequestSave();
+            return;
+        }
+
+        isClosing =
+            true;
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                await NotifySaveRequestedAsync(
+                    CreateReminderForSave(text));
+            }
+
+            await Navigation.PopModalAsync();
+        }
+        catch (Exception)
+        {
+            isClosing =
+                false;
+
+            await DisplayAlert(
+                "Ошибка",
+                "Не удалось сохранить напоминание.",
+                "OK");
         }
     }
 
