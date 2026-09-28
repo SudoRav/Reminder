@@ -54,7 +54,7 @@
                     <Label x:Name="ShowInNotificationCenterLabel"
                            Grid.Column="2"
                            FontSize="12"
-                           Text="Показ"
+                           Text="Показывать"
                            IsVisible="False"
                            VerticalTextAlignment="Center" />
 
@@ -582,7 +582,7 @@
                                 <VerticalStackLayout Grid.Column="1"
                                                      Spacing="2">
 
-                                    <Label Text="Date"
+                                    <Label Text="Дата"
                                            FontAttributes="Bold" />
 
                                     <Label x:Name="SelectedDateLabel"
@@ -632,7 +632,7 @@
                                 <VerticalStackLayout Grid.Column="1"
                                                      Spacing="2">
 
-                                    <Label Text="Time"
+                                    <Label Text="Время"
                                            FontAttributes="Bold" />
 
                                     <Label x:Name="SelectedTimeLabel"
@@ -754,7 +754,7 @@
                                 Clicked="OnResetDateTimeClicked"
                                 TextColor="{AppThemeBinding Light=#20242A, Dark=#FFFFFF}" />
 
-                        <Button Text="Отмена"
+                        <Button Text="Назад"
                                 BackgroundColor="Transparent"
                                 Clicked="OnCancelDateTimeClicked"
                                 TextColor="{AppThemeBinding Light=#20242A, Dark=#FFFFFF}" />
@@ -892,13 +892,19 @@
 
                                 </Grid>
 
+                                <Button Grid.Row="2"
+        Text="Назад"
+        BackgroundColor="Transparent"
+        HorizontalOptions="Start"
+        Clicked="OnCancelTimerClicked"
+        TextColor="{AppThemeBinding Light=#20242A, Dark=#FFFFFF}" />
 
                                 <Button Grid.Row="2"
-                                        Text="ОК"
-                                        BackgroundColor="Transparent"
-                                        HorizontalOptions="End"
-                                        Clicked="OnSaveTimerClicked" 
-                                        TextColor="{AppThemeBinding Light=#20242A, Dark=#FFFFFF}" />
+        Text="ОК"
+        BackgroundColor="Transparent"
+        HorizontalOptions="End"
+        Clicked="OnSaveTimerClicked"
+        TextColor="{AppThemeBinding Light=#20242A, Dark=#FFFFFF}" />
 
                             </Grid>
 

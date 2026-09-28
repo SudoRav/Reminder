@@ -239,13 +239,14 @@ public partial class ReminderEditorPage : ContentPage
 
 
     private static readonly Color TimerExpiredColor =
-    Color.FromArgb("#D98282");
+        Color.FromArgb("#D98282");
 
     private static readonly Color TimerNormalLightColor =
         Color.FromArgb("#20242A");
 
     private static readonly Color TimerNormalDarkColor =
         Colors.White;
+
 
     // ============================================================
     // ДАТА / ВРЕМЯ
@@ -559,10 +560,13 @@ public partial class ReminderEditorPage : ContentPage
 
         UpdateAutoCompleteControls();
 
+        UpdateNotificationReferenceButtons();
+
         UpdateTimerFromSelectedBoundary();
 
         RequestAutoSave();
     }
+
 
 
     // ============================================================
@@ -748,6 +752,7 @@ public partial class ReminderEditorPage : ContentPage
 
         await Navigation.PopModalAsync();
     }
+
 
 
     // ============================================================
@@ -961,6 +966,7 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
+
     // ============================================================
     // КОГДА?
     // ============================================================
@@ -1000,6 +1006,128 @@ public partial class ReminderEditorPage : ContentPage
 
     private void UpdateNotificationReferenceButtons()
     {
+        bool hasDisplayStart =
+            displayStart is not null;
+
+        bool hasDisplayEnd =
+            displayEnd is not null;
+
+
+        // ========================================================
+        // ВИДИМОСТЬ
+        // ========================================================
+
+        NotificationNowButton.IsVisible =
+            true;
+
+        NotificationStartButton.IsVisible =
+            hasDisplayStart;
+
+        NotificationEndButton.IsVisible =
+            hasDisplayEnd;
+
+
+        // ========================================================
+        // ДИНАМИЧЕСКАЯ РАЗМЕТКА GRID
+        // ========================================================
+        //
+        // В XAML изначально:
+        //
+        //     ColumnDefinitions="*,*,*"
+        //
+        // IsVisible=False скрывает только кнопку, но не колонку.
+        //
+        // Поэтому здесь мы полностью перестраиваем колонки.
+        //
+        // 3 кнопки:
+        //     *,*,*
+        //
+        // 2 кнопки:
+        //     *,*
+        //
+        // 1 кнопка:
+        //     *
+        // ========================================================
+
+        if (NotificationNowButton.Parent is Grid grid)
+        {
+            int visibleButtonCount =
+                1 +
+                (hasDisplayStart ? 1 : 0) +
+                (hasDisplayEnd ? 1 : 0);
+
+
+            grid.ColumnDefinitions.Clear();
+
+
+            for (int i = 0;
+                 i < visibleButtonCount;
+                 i++)
+            {
+                grid.ColumnDefinitions.Add(
+                    new ColumnDefinition
+                    {
+                        Width =
+                            GridLength.Star
+                    });
+            }
+
+
+            grid.ColumnSpacing =
+                visibleButtonCount > 1
+                    ? 4
+                    : 0;
+
+
+            // Сейчас всегда первая кнопка.
+            Grid.SetColumn(
+                NotificationNowButton,
+                0);
+
+
+            int nextColumn =
+                1;
+
+
+            // Начало.
+            if (hasDisplayStart)
+            {
+                Grid.SetColumn(
+                    NotificationStartButton,
+                    nextColumn);
+
+                nextColumn++;
+            }
+            else
+            {
+                // Скрытая кнопка не влияет на layout.
+                Grid.SetColumn(
+                    NotificationStartButton,
+                    0);
+            }
+
+
+            // Конец.
+            if (hasDisplayEnd)
+            {
+                Grid.SetColumn(
+                    NotificationEndButton,
+                    nextColumn);
+            }
+            else
+            {
+                // Скрытая кнопка не влияет на layout.
+                Grid.SetColumn(
+                    NotificationEndButton,
+                    0);
+            }
+        }
+
+
+        // ========================================================
+        // ЦВЕТА
+        // ========================================================
+
         bool isDark =
             Application.Current?.RequestedTheme ==
             AppTheme.Dark;
@@ -1027,6 +1155,10 @@ public partial class ReminderEditorPage : ContentPage
                 : Color.FromArgb("#20242A");
 
 
+        // ========================================================
+        // ФОН
+        // ========================================================
+
         NotificationNowButton.BackgroundColor =
             notificationReference ==
             NotificationReference.Now
@@ -1047,6 +1179,10 @@ public partial class ReminderEditorPage : ContentPage
                 ? selectedBackground
                 : normalBackground;
 
+
+        // ========================================================
+        // ЦВЕТ ТЕКСТА
+        // ========================================================
 
         NotificationNowButton.TextColor =
             notificationReference ==
@@ -1069,6 +1205,10 @@ public partial class ReminderEditorPage : ContentPage
                 : normalTextColor;
 
 
+        // ========================================================
+        // ЖИРНОСТЬ
+        // ========================================================
+
         NotificationNowButton.FontAttributes =
             notificationReference ==
             NotificationReference.Now
@@ -1089,6 +1229,7 @@ public partial class ReminderEditorPage : ContentPage
                 ? FontAttributes.Bold
                 : FontAttributes.None;
     }
+
 
 
     // ============================================================
@@ -1150,6 +1291,7 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
+
     // ============================================================
     // КОЛЕСО ЧИСЛА 1..99
     // ============================================================
@@ -1209,6 +1351,7 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
+
     // ============================================================
     // КОЛЕСО ЕДИНИЦЫ
     // ============================================================
@@ -1266,6 +1409,7 @@ public partial class ReminderEditorPage : ContentPage
         {
         }
     }
+
 
 
     // ============================================================
@@ -1432,6 +1576,7 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
+
     // ============================================================
     // СОЗДАНИЕ КОЛЁС ОПОВЕЩЕНИЙ
     // ============================================================
@@ -1542,6 +1687,7 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
+
     // ============================================================
     // ДОБАВЛЕНИЕ / УДАЛЕНИЕ ОПОВЕЩЕНИЙ
     // ============================================================
@@ -1633,6 +1779,7 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
+
     // ============================================================
     // АВТОЗАВЕРШЕНИЕ
     // ============================================================
@@ -1681,18 +1828,18 @@ public partial class ReminderEditorPage : ContentPage
             hasDisplayEnd ||
             hasDisplayStart;
 
+        // "Завершить" показывается только при наличии конца периода.
         AutoCompleteCheckBox.IsVisible =
-            hasDisplayPeriod;
+            hasDisplayEnd;
 
         AutoCompleteLabel.IsVisible =
-            hasDisplayPeriod;
+            hasDisplayEnd;
 
         ShowInNotificationCenterCheckBox.IsVisible =
             !hasDisplayPeriod;
 
         ShowInNotificationCenterLabel.IsVisible =
             !hasDisplayPeriod;
-
 
         DisplayPeriodGrid.IsVisible =
             true;
@@ -1703,13 +1850,11 @@ public partial class ReminderEditorPage : ContentPage
                 true;
         }
 
-
         if (!hasDisplayEnd)
         {
             autoCompleteOnDisplayEnd =
                 false;
         }
-
 
         AutoCompleteCheckBox.IsChecked =
             hasDisplayEnd &&
@@ -1727,6 +1872,7 @@ public partial class ReminderEditorPage : ContentPage
                 displayStart,
                 displayEnd);
     }
+
 
 
     // ============================================================
@@ -1776,6 +1922,7 @@ public partial class ReminderEditorPage : ContentPage
             RequestSave();
         }
     }
+
 
 
     // ============================================================
@@ -1834,6 +1981,7 @@ public partial class ReminderEditorPage : ContentPage
         OverlayDatePicker.Date =
             OverlayDatePicker.Date.AddDays(-1);
     }
+
 
 
     // ============================================================
@@ -1929,6 +2077,7 @@ public partial class ReminderEditorPage : ContentPage
             target.Value -
             DateTime.Now);
     }
+
 
 
     // ============================================================
@@ -2138,6 +2287,7 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
+
     // ============================================================
     // ПРОКРУТКА ДНЕЙ
     // ============================================================
@@ -2201,6 +2351,7 @@ public partial class ReminderEditorPage : ContentPage
         {
         }
     }
+
 
 
     // ============================================================
@@ -2268,6 +2419,7 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
+
     // ============================================================
     // ПРОКРУТКА МИНУТ
     // ============================================================
@@ -2333,6 +2485,7 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
+
     // ============================================================
     // ОБЩИЙ SNAP ТАЙМЕРА
     // ============================================================
@@ -2370,6 +2523,7 @@ public partial class ReminderEditorPage : ContentPage
                 false;
         }
     }
+
 
 
     // ============================================================
@@ -2447,6 +2601,7 @@ public partial class ReminderEditorPage : ContentPage
             MinutesWheelLayout,
             pendingTimerMinutes);
     }
+
 
 
     // ============================================================
@@ -2561,6 +2716,8 @@ public partial class ReminderEditorPage : ContentPage
 
         UpdateAutoCompleteControls();
 
+        UpdateNotificationReferenceButtons();
+
         UpdateTimerFromCurrentTarget();
 
         RequestAutoSave();
@@ -2569,6 +2726,7 @@ public partial class ReminderEditorPage : ContentPage
         TimerDurationOverlay.IsVisible =
             false;
     }
+
 
 
     // ============================================================
@@ -2622,6 +2780,7 @@ public partial class ReminderEditorPage : ContentPage
             roundedRemaining,
             false);
     }
+
 
 
     // ============================================================
@@ -2737,6 +2896,8 @@ public partial class ReminderEditorPage : ContentPage
 
         UpdateAutoCompleteControls();
 
+        UpdateNotificationReferenceButtons();
+
         UpdateTimerFromDateTimePicker();
 
         RequestAutoSave();
@@ -2827,5 +2988,91 @@ public partial class ReminderEditorPage : ContentPage
 
         TimerMinutesDisplayLabel.Text =
             timerMinutes.ToString("00");
+    }
+
+    // ============================================================
+    // ОТМЕНА ТАЙМЕРА
+    // ============================================================
+
+    private async void OnCancelTimerClicked(
+        object? sender,
+        EventArgs e)
+    {
+        // Отменяем ожидающий snap,
+        // чтобы он не изменил колёса после закрытия окна.
+        daysSnapCancellation?.Cancel();
+        hoursSnapCancellation?.Cancel();
+        minutesSnapCancellation?.Cancel();
+
+
+        // --------------------------------------------------------
+        // Восстанавливаем исходные значения колёс.
+        //
+        // timerDays / timerHours / timerMinutes —
+        // это последнее ПОДТВЕРЖДЁННОЕ значение.
+        //
+        // pendingTimer* — временные значения, изменяемые
+        // пользователем во время открытого окна.
+        // --------------------------------------------------------
+
+        pendingTimerDays =
+            timerDays;
+
+        pendingTimerHours =
+            timerHours;
+
+        pendingTimerMinutes =
+            timerMinutes;
+
+
+        // --------------------------------------------------------
+        // Возвращаем визуальное положение колёс
+        // к подтверждённому значению.
+        // --------------------------------------------------------
+
+        isTimerWheelProgrammaticScroll =
+            true;
+
+        try
+        {
+            await DaysWheel.ScrollToAsync(
+                0,
+                timerDays * TimerWheelItemHeight,
+                false);
+
+            await HoursWheel.ScrollToAsync(
+                0,
+                timerHours * TimerWheelItemHeight,
+                false);
+
+            await MinutesWheel.ScrollToAsync(
+                0,
+                timerMinutes * TimerWheelItemHeight,
+                false);
+        }
+        finally
+        {
+            isTimerWheelProgrammaticScroll =
+                false;
+        }
+
+
+        // Обновляем оформление выбранных элементов.
+        UpdateWheelVisuals(
+            DaysWheelLayout,
+            timerDays);
+
+        UpdateWheelVisuals(
+            HoursWheelLayout,
+            timerHours);
+
+        UpdateWheelVisuals(
+            MinutesWheelLayout,
+            timerMinutes);
+
+
+        // Закрываем окно БЕЗ применения изменений.
+        TimerDurationOverlay.IsVisible =
+            false;
     }
 }
