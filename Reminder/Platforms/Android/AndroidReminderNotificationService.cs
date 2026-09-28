@@ -55,6 +55,9 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     internal const string NotificationOverlayEnabledExtra =
         "notification_overlay_enabled";
 
+    internal const string NotificationPushEnabledExtra =
+        "notification_push_enabled";
+
     internal const string NotificationAlarmEnabledExtra =
         "notification_alarm_enabled";
 
@@ -78,6 +81,8 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
     public static event Action<int, DateTime>? NotificationTimeTriggered;
 
+    public static event Action<int>? NotificationTimeDeferred;
+
     internal static void NotifyReminderCompleted(int reminderId) =>
         ReminderCompleted?.Invoke(reminderId);
 
@@ -94,6 +99,9 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         NotificationTimeTriggered?.Invoke(
             reminderId,
             notificationTime);
+
+    private static void NotifyNotificationTimeDeferred(int reminderId) =>
+        NotificationTimeDeferred?.Invoke(reminderId);
 
     public AndroidReminderNotificationService()
     {
@@ -608,10 +616,25 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         long triggerAtMillis,
         PendingIntent? pendingIntent)
     {
+        ScheduleNotificationTimeAlarm(
+            context,
+            triggerAtMillis,
+            pendingIntent);
+    }
+
+    private static void ScheduleNotificationTimeAlarm(
+        Context context,
+        long triggerAtMillis,
+        PendingIntent? pendingIntent)
+    {
         if (pendingIntent is null)
         {
             return;
         }
+
+        AlarmManager alarmManager =
+            (AlarmManager)context.GetSystemService(
+                Context.AlarmService)!;
 
         if (Build.VERSION.SdkInt >= BuildVersionCodes.S)
         {
@@ -845,6 +868,10 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
                 settings.IsOverlayEnabled);
 
             serviceIntent.PutExtra(
+                NotificationPushEnabledExtra,
+                settings.IsPushEnabled);
+
+            serviceIntent.PutExtra(
                 NotificationAlarmEnabledExtra,
                 settings.IsAlarmEnabled);
         }
@@ -920,6 +947,61 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
                     notificationTime));
 
         return reminder;
+    }
+
+    internal static void DeferNotificationTime(
+        Context context,
+        int reminderId,
+        NotificationTimeSettings originalSettings)
+    {
+        const string remindersKey = "reminders";
+
+        JsonSerializerOptions jsonOptions =
+            new(JsonSerializerDefaults.Web);
+
+        List<ReminderItem> reminders =
+            LoadRemindersFromPreferences(
+                remindersKey,
+                jsonOptions);
+
+        ReminderItem? reminder = reminders.FirstOrDefault(
+            item => item.Id == reminderId);
+
+        if (reminder is null || reminder.CompletedAt is not null)
+        {
+            return;
+        }
+
+        DateTime deferredTime = DateTime.Now.AddHours(1);
+
+        NotificationTimeSettings deferredSettings = new()
+        {
+            Time = deferredTime,
+            IsPushEnabled = originalSettings.IsPushEnabled,
+            IsOverlayEnabled = originalSettings.IsOverlayEnabled,
+            IsAlarmEnabled = originalSettings.IsAlarmEnabled
+        };
+
+        reminder.NotificationTimes.Add(deferredTime);
+        reminder.NotificationTimeSettings.Add(deferredSettings);
+
+        Preferences.Default.Set(
+            remindersKey,
+            JsonSerializer.Serialize(reminders, jsonOptions));
+
+        PendingIntent? pendingIntent =
+            CreateNotificationTimePendingIntent(
+                context,
+                reminderId,
+                deferredTime);
+
+        ScheduleNotificationTimeAlarm(
+            context,
+            new DateTimeOffset(deferredTime).ToUnixTimeMilliseconds(),
+            pendingIntent);
+
+        MainThread.BeginInvokeOnMainThread(
+            () => NotifyNotificationTimeDeferred(reminderId));
     }
 
     // ============================================================
@@ -1895,6 +1977,11 @@ public sealed class ReminderOverlayService : Service
                             AndroidReminderNotificationService.NotificationOverlayEnabledExtra,
                             false) ?? false,
 
+                    IsPushEnabled =
+                        intent?.GetBooleanExtra(
+                            AndroidReminderNotificationService.NotificationPushEnabledExtra,
+                            false) ?? false,
+
                     IsAlarmEnabled =
                         intent?.GetBooleanExtra(
                             AndroidReminderNotificationService.NotificationAlarmEnabledExtra,
@@ -1998,6 +2085,19 @@ public sealed class ReminderOverlayService : Service
             Clickable = true
         };
 
+        EventHandler openReminderEditor = (_, _) =>
+        {
+            StartActivity(
+                AndroidReminderNotificationService.CreateOpenEditorIntent(
+                    reminder.Id));
+            RemoveOverlay();
+            StopSelf();
+        };
+
+        // Нажатие по карточке открывает напоминание. Кнопки имеют собственные
+        // обработчики, поэтому это действие не применяется к ним.
+        card.Click += openReminderEditor;
+
         var cardBackground = new Android.Graphics.Drawables.GradientDrawable();
         cardBackground.SetColor(Android.Graphics.Color.White);
         cardBackground.SetCornerRadius(32);
@@ -2011,8 +2111,10 @@ public sealed class ReminderOverlayService : Service
         // Заголовок
         var header = new Android.Widget.LinearLayout(this)
         {
-            Orientation = Orientation.Horizontal
+            Orientation = Orientation.Horizontal,
+            Clickable = true
         };
+        header.Click += openReminderEditor;
 
         var title = new Android.Widget.TextView(this)
         {
@@ -2020,6 +2122,7 @@ public sealed class ReminderOverlayService : Service
             TextSize = isLandscape ? 18 : 14 // Увеличиваем шрифт в горизонтальной ориентации
         };
         title.SetTextColor(Android.Graphics.Color.Black);
+        title.Click += openReminderEditor;
 
         header.AddView(
             title,
@@ -2066,6 +2169,9 @@ public sealed class ReminderOverlayService : Service
 
         var scrollView = new Android.Widget.ScrollView(this);
         scrollView.AddView(textView);
+        scrollView.Clickable = true;
+        scrollView.Click += openReminderEditor;
+        textView.Click += openReminderEditor;
 
         var scrollParams = new Android.Widget.LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MatchParent,
@@ -2081,16 +2187,21 @@ public sealed class ReminderOverlayService : Service
         };
 
         // Адаптивные кнопки
-        var openButton = new Android.Widget.Button(this)
+        var deferButton = new Android.Widget.Button(this)
         {
-            Text = "Открыть",
+            Text = "Отложить",
             TextSize = isLandscape ? 18 : 14
         };
-        openButton.Click += (_, _) =>
+        deferButton.Click += (_, _) =>
         {
-            StartActivity(
-                AndroidReminderNotificationService.CreateOpenEditorIntent(reminder.Id));
+            AndroidReminderNotificationService.DeferNotificationTime(
+                this,
+                reminder.Id,
+                settings);
             RemoveOverlay();
+            AndroidReminderNotificationService.RestorePersistentNotification(
+                this,
+                reminder.Id);
             StopSelf();
         };
 
@@ -2113,7 +2224,7 @@ public sealed class ReminderOverlayService : Service
             StopSelf();
         };
 
-        var openButtonParams = new Android.Widget.GridLayout.LayoutParams
+        var deferButtonParams = new Android.Widget.GridLayout.LayoutParams
         {
             Width = 0,
             Height = ViewGroup.LayoutParams.WrapContent,
@@ -2127,7 +2238,7 @@ public sealed class ReminderOverlayService : Service
             ColumnSpec = Android.Widget.GridLayout.InvokeSpec(1, 1, 1f)
         };
 
-        buttonGrid.AddView(openButton, openButtonParams);
+        buttonGrid.AddView(deferButton, deferButtonParams);
         buttonGrid.AddView(completeButton, completeButtonParams);
 
         var buttonGridParams = new Android.Widget.LinearLayout.LayoutParams(
