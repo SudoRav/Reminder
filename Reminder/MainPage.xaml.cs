@@ -55,7 +55,7 @@ public partial class MainPage : ContentPage
     {
         var editorPage = new ReminderEditorPage();
         ReminderItem? reminder = null;
-        editorPage.SaveRequested += async (_, editedReminder) =>
+        editorPage.SaveRequested += async editedReminder =>
         {
             if (reminder is null)
             {
@@ -126,7 +126,7 @@ public partial class MainPage : ContentPage
         }
 
         var editorPage = new ReminderEditorPage(reminder);
-        editorPage.SaveRequested += async (_, editedReminder) =>
+        editorPage.SaveRequested += async editedReminder =>
         {
             notificationService.Cancel(reminder.Id);
             reminder.Text = editedReminder.Text;
