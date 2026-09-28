@@ -268,6 +268,10 @@ public partial class MainPage : ContentPage
         {
             MainThread.BeginInvokeOnMainThread(() => RemoveTriggeredNotificationTime(reminderId, notificationTime));
         };
+        AndroidReminderNotificationService.NotificationTimeDeferred += _ =>
+        {
+            MainThread.BeginInvokeOnMainThread(ReloadReminders);
+        };
 #endif
     }
 
