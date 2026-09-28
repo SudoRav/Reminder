@@ -37,6 +37,9 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     internal const string StopAlarmAction =
         "com.companyname.reminder.STOP_ALARM";
 
+    internal const string DismissOverlayAction =
+        "com.companyname.reminder.DISMISS_OVERLAY";
+
     private const string AutoCompleteAction =
         "com.companyname.reminder.AUTO_COMPLETE_REMINDER";
 
@@ -1232,7 +1235,13 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             ReminderIdExtra,
             reminderId);
 
-        context.StopService(
+        serviceIntent.SetAction(DismissOverlayAction);
+
+        // Сервис может одновременно хранить очередь окон от разных
+        // напоминаний. Передаём ему идентификатор, чтобы закрыть только
+        // окно отменяемого напоминания, не останавливая остальные.
+        ContextCompat.StartForegroundService(
+            context,
             serviceIntent);
     }
 
@@ -1911,11 +1920,17 @@ public sealed class ReminderOverlayService : Service
     private WindowManagerLayoutParams? layoutParams;
     private IWindowManager? windowManager;
     private Android.Views.View? overlayView;
+    private Queue<PendingOverlay> pendingOverlays = [];
+    private int displayedReminderId;
     private MediaPlayer? alarmPlayer;
     private Vibrator? vibrator;
     private BroadcastReceiver? unlockReceiver;
     private bool isUnlockReceiverRegistered;
     private int reminderId;
+
+    private sealed record PendingOverlay(
+        ReminderItem Reminder,
+        NotificationTimeSettings Settings);
 
     public override IBinder? OnBind(Intent? intent) => null;
 
@@ -1930,11 +1945,16 @@ public sealed class ReminderOverlayService : Service
                 0) ?? 0;
 
         if (intent?.Action ==
+            AndroidReminderNotificationService.DismissOverlayAction)
+        {
+            DismissReminderOverlay(reminderId);
+            return StartCommandResult.NotSticky;
+        }
+
+        if (intent?.Action ==
             AndroidReminderNotificationService.CompleteAction)
         {
-            RemoveOverlay();
-            StopSelf();
-
+            DismissReminderOverlay(reminderId);
             return StartCommandResult.NotSticky;
         }
 
@@ -2033,7 +2053,17 @@ public sealed class ReminderOverlayService : Service
 
     private void AddOverlay(ReminderItem reminder, NotificationTimeSettings settings)
     {
-        RemoveOverlay();
+        // Android запускает один экземпляр Service. Когда несколько alarm'ов
+        // срабатывают одновременно, новый StartCommand не должен удалять уже
+        // показанное окно: оно помещается в очередь и будет показано после
+        // закрытия текущего.
+        if (overlayView is not null)
+        {
+            pendingOverlays.Enqueue(new PendingOverlay(reminder, settings));
+            return;
+        }
+
+        displayedReminderId = reminder.Id;
 
         if (settings.IsAlarmEnabled)
         {
@@ -2091,7 +2121,7 @@ public sealed class ReminderOverlayService : Service
                 AndroidReminderNotificationService.CreateOpenEditorIntent(
                     reminder.Id));
             RemoveOverlay();
-            StopSelf();
+            ShowNextOverlay();
         };
 
         // Нажатие по карточке открывает напоминание. Кнопки имеют собственные
@@ -2144,7 +2174,7 @@ public sealed class ReminderOverlayService : Service
         {
             RemoveOverlay();
             AndroidReminderNotificationService.RestorePersistentNotification(this, reminder.Id);
-            StopSelf();
+            ShowNextOverlay();
         };
 
         header.AddView(
@@ -2202,7 +2232,7 @@ public sealed class ReminderOverlayService : Service
             AndroidReminderNotificationService.RestorePersistentNotification(
                 this,
                 reminder.Id);
-            StopSelf();
+            ShowNextOverlay();
         };
 
         var completeButton = new Android.Widget.Button(this)
@@ -2221,7 +2251,7 @@ public sealed class ReminderOverlayService : Service
                         AndroidReminderNotificationService.ReminderIdExtra,
                         reminder.Id));
             RemoveOverlay();
-            StopSelf();
+            ShowNextOverlay();
         };
 
         var deferButtonParams = new Android.Widget.GridLayout.LayoutParams
@@ -2296,6 +2326,36 @@ public sealed class ReminderOverlayService : Service
                 reminder);
             StopSelf();
         }
+    }
+
+    private void DismissReminderOverlay(int targetReminderId)
+    {
+        pendingOverlays = new Queue<PendingOverlay>(
+            pendingOverlays.Where(
+                overlay => overlay.Reminder.Id != targetReminderId));
+
+        if (overlayView is not null &&
+            displayedReminderId == targetReminderId)
+        {
+            RemoveOverlay();
+            ShowNextOverlay();
+        }
+        else if (overlayView is null && pendingOverlays.Count == 0)
+        {
+            StopSelf();
+        }
+    }
+
+    private void ShowNextOverlay()
+    {
+        if (pendingOverlays.Count == 0)
+        {
+            StopSelf();
+            return;
+        }
+
+        PendingOverlay nextOverlay = pendingOverlays.Dequeue();
+        AddOverlay(nextOverlay.Reminder, nextOverlay.Settings);
     }
 
     private void TriggerAlert(ReminderItem reminder)
@@ -2471,6 +2531,7 @@ public sealed class ReminderOverlayService : Service
             windowManager.RemoveView(overlayView);
         }
         overlayView = null;
+        displayedReminderId = 0;
         StopAlarmSignal();
     }
 }
