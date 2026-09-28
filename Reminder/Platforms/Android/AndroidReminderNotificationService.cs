@@ -1939,6 +1939,16 @@ public sealed class ReminderOverlayService : Service
     StartCommandFlags flags,
     int startId)
     {
+        // StartOverlayService and DismissOverlay can both start this service
+        // through ContextCompat.StartForegroundService. Android requires every
+        // such start to promote the service to foreground promptly, including
+        // commands that return early after dismissing an overlay or stopping
+        // an alarm.
+        StartForeground(
+            AndroidReminderNotificationService
+                .OverlayForegroundNotificationIdOffset,
+            BuildForegroundNotification());
+
         reminderId =
             intent?.GetIntExtra(
                 AndroidReminderNotificationService.ReminderIdExtra,
@@ -2013,12 +2023,6 @@ public sealed class ReminderOverlayService : Service
                     IsAlarmEnabled = true
                 };
 
-        StartForeground(
-            AndroidReminderNotificationService
-                .OverlayForegroundNotificationIdOffset
-            + reminder.Id,
-            BuildForegroundNotification(reminder));
-
         // Overlay и Alarm независимы друг от друга.
         if (settings.IsOverlayEnabled)
         {
@@ -2041,7 +2045,7 @@ public sealed class ReminderOverlayService : Service
         base.OnDestroy();
     }
 
-    private Notification BuildForegroundNotification(ReminderItem reminder) => new NotificationCompat.Builder(this, AndroidReminderNotificationService.OverlayForegroundChannelId)
+    private Notification BuildForegroundNotification() => new NotificationCompat.Builder(this, AndroidReminderNotificationService.OverlayForegroundChannelId)
         .SetSmallIcon(Resource.Drawable.notification_icon)
         .SetContentTitle("Служба напоминаний")
         .SetContentText("Показ окна напоминания")
