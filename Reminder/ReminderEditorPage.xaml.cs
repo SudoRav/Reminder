@@ -275,8 +275,10 @@ public partial class ReminderEditorPage : ContentPage
         }
         else if (displayEnd is DateTime savedEnd)
         {
+            //initialDate =
+            //    savedEnd.Date.AddDays(-1);
             initialDate =
-                savedEnd.Date.AddDays(-1);
+    savedEnd.Date.AddDays(0);
 
             initialTime =
                 TimeSpan.Zero;
@@ -319,16 +321,20 @@ public partial class ReminderEditorPage : ContentPage
         }
         else if (displayStart is DateTime savedStart)
         {
+            //initialDate =
+            //    savedStart.Date.AddDays(1);
             initialDate =
-                savedStart.Date.AddDays(1);
+    savedStart.Date.AddDays(0);
 
             initialTime =
                 new TimeSpan(23, 0, 0);
         }
         else
         {
+            //initialDate =
+            //    DateTime.Today.AddDays(1);
             initialDate =
-                DateTime.Today.AddDays(1);
+                DateTime.Today.AddDays(0);
 
             initialTime =
                 new TimeSpan(23, 0, 0);
@@ -1948,12 +1954,52 @@ public partial class ReminderEditorPage : ContentPage
     // БЫСТРЫЕ КНОПКИ ДАТЫ / ВРЕМЕНИ
     // ============================================================
 
-    private void settime900(
+    private void settime0300(
+        object? sender,
+        EventArgs e)
+    {
+        OverlayTimePicker.Time =
+            new TimeSpan(3, 0, 0);
+    }
+
+    private void settime0600(
+object? sender,
+EventArgs e)
+    {
+        OverlayTimePicker.Time =
+            new TimeSpan(6, 0, 0);
+    }
+
+    private void settime0900(
         object? sender,
         EventArgs e)
     {
         OverlayTimePicker.Time =
             new TimeSpan(9, 0, 0);
+    }
+
+    private void settime1200(
+    object? sender,
+    EventArgs e)
+    {
+        OverlayTimePicker.Time =
+            new TimeSpan(12, 0, 0);
+    }
+
+    private void settime1500(
+    object? sender,
+    EventArgs e)
+    {
+        OverlayTimePicker.Time =
+            new TimeSpan(15, 0, 0);
+    }
+
+    private void settime1800(
+object? sender,
+EventArgs e)
+    {
+        OverlayTimePicker.Time =
+            new TimeSpan(18, 0, 0);
     }
 
 
@@ -1963,24 +2009,6 @@ public partial class ReminderEditorPage : ContentPage
     {
         OverlayTimePicker.Time =
             new TimeSpan(21, 0, 0);
-    }
-
-
-    private void settime1500(
-        object? sender,
-        EventArgs e)
-    {
-        OverlayTimePicker.Time =
-            new TimeSpan(15, 0, 0);
-    }
-
-
-    private void settime300(
-        object? sender,
-        EventArgs e)
-    {
-        OverlayTimePicker.Time =
-            new TimeSpan(3, 0, 0);
     }
 
 
