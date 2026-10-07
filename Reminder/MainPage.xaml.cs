@@ -13,6 +13,11 @@ public partial class MainPage : ContentPage
     private readonly IReminderNotificationService notificationService;
     private readonly SemaphoreSlim editorNavigationSemaphore = new(1, 1);
     private ReminderItem? groupSelectionReminder;
+
+    private const int LongPressDurationMilliseconds = 500;
+    private CancellationTokenSource? longPressCancellation;
+    private bool suppressNextReminderTap;
+
     private int? openEditorReminderId;
     private readonly IDispatcherTimer autoCompleteTimer;
     private bool isSortingReminders;
@@ -37,6 +42,76 @@ public partial class MainPage : ContentPage
         autoCompleteTimer.Start();
     }
 
+    private void OnReminderPointerPressed(object? sender, PointerEventArgs e)
+    {
+        if (sender is not Border border ||
+            border.BindingContext is not ReminderItem reminder)
+        {
+            return;
+        }
+
+        CancelLongPress();
+
+        var cancellation = new CancellationTokenSource();
+        longPressCancellation = cancellation;
+
+        _ = DetectLongPressAsync(reminder, cancellation.Token);
+    }
+
+    private void OnReminderPointerReleased(object? sender, PointerEventArgs e)
+    {
+        CancelLongPress();
+    }
+
+    private void OnReminderPointerExited(object? sender, PointerEventArgs e)
+    {
+        CancelLongPress();
+    }
+
+    private async Task DetectLongPressAsync(
+        ReminderItem reminder,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(
+                LongPressDurationMilliseconds,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            groupSelectionReminder = reminder;
+
+            // После удержания следующий Tap этого же элемента
+            // не должен открыть редактор.
+            suppressNextReminderTap = true;
+
+            GroupSelectionOverlay.IsVisible = true;
+        });
+    }
+
+    private void CancelLongPress()
+    {
+        longPressCancellation?.Cancel();
+        longPressCancellation?.Dispose();
+        longPressCancellation = null;
+    }
+
     private void OnGroupButtonClicked(object? sender, EventArgs e)
     {
         if (groupSelectionReminder is null)
@@ -57,11 +132,17 @@ public partial class MainPage : ContentPage
 
         groupSelectionReminder.Group = group;
 
-        // Изменение группы сохраняется вместе с ReminderItem.
+        // Сохраняем новое значение группы.
         SaveReminders();
 
         GroupSelectionOverlay.IsVisible = false;
         groupSelectionReminder = null;
+
+        // После выбора группы следующий обычный Tap
+        // уже должен работать как обычно.
+        suppressNextReminderTap = false;
+
+        CancelLongPress();
     }
 
     protected override async void OnAppearing()
@@ -77,6 +158,13 @@ public partial class MainPage : ContentPage
         {
             await ShowOrCancelNotificationAsync(reminder);
         }
+    }
+
+    protected override void OnDisappearing()
+    {
+        CancelLongPress();
+
+        base.OnDisappearing();
     }
 
     private async void OnCreateClicked(object? sender, EventArgs e)
@@ -120,6 +208,22 @@ public partial class MainPage : ContentPage
 
     private async void OnReminderTapped(object? sender, TappedEventArgs e)
     {
+        // Если открыто окно выбора группы,
+        // редактор открывать не нужно.
+        if (GroupSelectionOverlay.IsVisible)
+        {
+            return;
+        }
+
+        // Long press заканчивается обычным release,
+        // поэтому возможен дополнительный Tap.
+        // Не даём ему открыть редактор.
+        if (suppressNextReminderTap)
+        {
+            suppressNextReminderTap = false;
+            return;
+        }
+
         if (e.Parameter is not ReminderItem reminder)
         {
             return;

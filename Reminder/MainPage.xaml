@@ -17,38 +17,38 @@
                 <DataTemplate x:DataType="local:ReminderItem">
 
                     <Border Margin="0,0,0,12"
-                            Padding="16"
-                            StrokeShape="RoundRectangle 12"
-                            BackgroundColor="{AppThemeBinding Light=#FFF8D6, Dark=#4B421D}">
+        Padding="16"
+        StrokeShape="RoundRectangle 12"
+        BackgroundColor="{AppThemeBinding Light=#FFF8D6, Dark=#4B421D}">
 
                         <Border.Triggers>
 
                             <DataTrigger TargetType="Border"
-                                         Binding="{Binding Group}"
-                                         Value="1">
+                     Binding="{Binding Group}"
+                     Value="1">
                                 <Setter Property="BackgroundColor"
-                                        Value="#FF6B6B" />
+                    Value="#FF6B6B" />
                             </DataTrigger>
 
                             <DataTrigger TargetType="Border"
-                                         Binding="{Binding Group}"
-                                         Value="2">
+                     Binding="{Binding Group}"
+                     Value="2">
                                 <Setter Property="BackgroundColor"
-                                        Value="#FFD93D" />
+                    Value="#FFD93D" />
                             </DataTrigger>
 
                             <DataTrigger TargetType="Border"
-                                         Binding="{Binding Group}"
-                                         Value="3">
+                     Binding="{Binding Group}"
+                     Value="3">
                                 <Setter Property="BackgroundColor"
-                                        Value="Transparent" />
+                    Value="Transparent" />
                             </DataTrigger>
 
                             <DataTrigger TargetType="Border"
-                                         Binding="{Binding Group}"
-                                         Value="4">
+                     Binding="{Binding Group}"
+                     Value="4">
                                 <Setter Property="BackgroundColor"
-                                        Value="#4D96FF" />
+                    Value="#4D96FF" />
                             </DataTrigger>
 
                         </Border.Triggers>
@@ -56,21 +56,26 @@
                         <Border.GestureRecognizers>
 
                             <TapGestureRecognizer Tapped="OnReminderTapped"
-                                                   CommandParameter="{Binding .}" />
+                              CommandParameter="{Binding .}" />
+
+                            <PointerGestureRecognizer
+            PointerPressed="OnReminderPointerPressed"
+            PointerReleased="OnReminderPointerReleased"
+            PointerExited="OnReminderPointerExited" />
 
                         </Border.GestureRecognizers>
 
                         <VerticalStackLayout Spacing="10">
 
                             <Label Text="{Binding ., Converter={StaticResource ReminderListPeriodConverter}}"
-                                   FontAttributes="Bold"
-                                   FontSize="14"
-                                   IsVisible="{Binding ., Converter={StaticResource ReminderListPeriodVisibilityConverter}}"
-                                   LineBreakMode="WordWrap" />
+               FontAttributes="Bold"
+               FontSize="14"
+               IsVisible="{Binding ., Converter={StaticResource ReminderListPeriodVisibilityConverter}}"
+               LineBreakMode="WordWrap" />
 
                             <Label Text="{Binding Text}"
-                                   FontSize="18"
-                                   LineBreakMode="WordWrap" />
+               FontSize="18"
+               LineBreakMode="WordWrap" />
 
                         </VerticalStackLayout>
 
