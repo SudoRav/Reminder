@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using static Android.Views.GestureDetector;
 
 namespace Reminder;
 
@@ -36,17 +35,6 @@ public partial class MainPage : ContentPage
         autoCompleteTimer.Interval = TimeSpan.FromSeconds(30);
         autoCompleteTimer.Tick += (_, _) => CompleteExpiredAutoCompleteReminders();
         autoCompleteTimer.Start();
-    }
-
-    private void OnReminderLongPressed(object? sender, LongPressedEventArgs e)
-    {
-        if (e.Parameter is not ReminderItem reminder)
-        {
-            return;
-        }
-
-        groupSelectionReminder = reminder;
-        GroupSelectionOverlay.IsVisible = true;
     }
 
     private void OnGroupButtonClicked(object? sender, EventArgs e)
