@@ -1226,31 +1226,14 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         }
     }
 
-    internal static void DismissOverlay(
-        Context context,
-        int reminderId)
+    internal static void DismissOverlay(Context context, int reminderId)
     {
-        CancelOverlayNotifications(
-            context,
-            reminderId);
+        CancelOverlayNotifications(context, reminderId);
 
-        Intent serviceIntent =
-            new(
-                context,
-                typeof(ReminderOverlayService));
+        ReminderOverlayService? service =
+            ReminderOverlayService.GetCurrentInstance();
 
-        serviceIntent.PutExtra(
-            ReminderIdExtra,
-            reminderId);
-
-        serviceIntent.SetAction(DismissOverlayAction);
-
-        // Сервис может одновременно хранить очередь окон от разных
-        // напоминаний. Передаём ему идентификатор, чтобы закрыть только
-        // окно отменяемого напоминания, не останавливая остальные.
-        ContextCompat.StartForegroundService(
-            context,
-            serviceIntent);
+        service?.DismissReminderOverlay(reminderId);
     }
 
     // ============================================================
@@ -1492,8 +1475,8 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     // ============================================================
 
     private static void ShowScheduledPushNotification(
-        Context context,
-        ReminderItem reminder)
+    Context context,
+    ReminderItem reminder)
     {
         DateTime now = DateTime.Now;
 
@@ -1520,15 +1503,6 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
                     reminder.Id),
                 flags);
 
-        PendingIntent? completePendingIntent =
-            PendingIntent.GetBroadcast(
-                context,
-                reminder.Id,
-                CreateCompleteIntent(
-                    context,
-                    reminder.Id),
-                flags);
-
         Notification notification =
             new NotificationCompat.Builder(
                 context,
@@ -1538,12 +1512,12 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
                 Resource.Drawable.notification_icon)
 
             .SetContentTitle(
+                reminder.Text)
+
+            .SetContentText(
                 ReminderDisplayFormatter.GetDisplayText(
                     reminder.DisplayStart,
                     reminder.DisplayEnd))
-
-            .SetContentText(
-                reminder.Text)
 
             .SetStyle(
                 new NotificationCompat.BigTextStyle()
@@ -1552,12 +1526,8 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             .SetContentIntent(
                 pendingIntent)
 
-            .AddAction(
-                Resource.Drawable.notification_icon,
-                "Завершить",
-                completePendingIntent)
-
-            // Push должен быть НЕ липким.
+            // Push — самостоятельное одноразовое уведомление.
+            // Кнопки "Завершить" здесь НЕТ.
             .SetOngoing(false)
             .SetAutoCancel(true)
 
@@ -1572,11 +1542,10 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         if (manager.AreNotificationsEnabled())
         {
             /*
-             * Важно:
              * Push — одноразовое уведомление.
              *
-             * Поэтому здесь используется отдельный ID,
-             * чтобы оно не заменяло persistent notification.
+             * Используется отдельный ID,
+             * чтобы Push не заменял persistent notification.
              */
             int notificationId =
                 PermissionNotificationIdOffset +
@@ -1925,6 +1894,13 @@ public sealed class CompleteReminderReceiver
 [Service(Enabled = true, Exported = false)]
 public sealed class ReminderOverlayService : Service
 {
+    private static ReminderOverlayService? Current;
+
+    internal static ReminderOverlayService? GetCurrentInstance()
+    {
+        return Current;
+    }
+
     private WindowManagerLayoutParams? layoutParams;
     private IWindowManager? windowManager;
     private Android.Views.View? overlayView;
@@ -1940,23 +1916,45 @@ public sealed class ReminderOverlayService : Service
         ReminderItem Reminder,
         NotificationTimeSettings Settings);
 
+    public override void OnCreate()
+    {
+        base.OnCreate();
+
+        Current = this;
+
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.O)
+        {
+            NotificationManager manager =
+                (NotificationManager)GetSystemService(
+                    NotificationService)!;
+
+            NotificationChannel channel =
+                new NotificationChannel(
+                    AndroidReminderNotificationService.OverlayForegroundChannelId,
+                    "Служба напоминаний",
+                    NotificationImportance.Min)
+                {
+                    Description = "Техническое уведомление службы напоминаний"
+                };
+
+            channel.EnableVibration(false);
+            channel.SetSound(null, null);
+            channel.SetShowBadge(false);
+
+            manager.CreateNotificationChannel(channel);
+        }
+    }
+
     public override IBinder? OnBind(Intent? intent) => null;
 
     public override StartCommandResult OnStartCommand(
-    Intent? intent,
-    StartCommandFlags flags,
-    int startId)
+        Intent? intent,
+        StartCommandFlags flags,
+        int startId)
     {
-        // StartOverlayService and DismissOverlay can both start this service
-        // through ContextCompat.StartForegroundService. Android requires every
-        // such start to promote the service to foreground promptly, including
-        // commands that return early after dismissing an overlay or stopping
-        // an alarm.
-
-        //StartForeground(
-        //    AndroidReminderNotificationService
-        //        .OverlayForegroundNotificationIdOffset,
-        //    BuildForegroundNotification());
+        StartForeground(
+            AndroidReminderNotificationService.OverlayForegroundNotificationIdOffset,
+            BuildForegroundNotification());
 
         reminderId =
             intent?.GetIntExtra(
@@ -1981,7 +1979,6 @@ public sealed class ReminderOverlayService : Service
             AndroidReminderNotificationService.StopAlarmAction)
         {
             StopAlarmAfterUnlock();
-
             return StartCommandResult.NotSticky;
         }
 
@@ -1996,8 +1993,7 @@ public sealed class ReminderOverlayService : Service
                 : new DateTime(notificationTimeTicks);
 
         ReminderItem? reminder =
-            AndroidReminderNotificationService.LoadReminder(
-                reminderId);
+            AndroidReminderNotificationService.LoadReminder(reminderId);
 
         if (reminder is null)
         {
@@ -2032,12 +2028,9 @@ public sealed class ReminderOverlayService : Service
                     IsAlarmEnabled = true
                 };
 
-        // Overlay и Alarm независимы друг от друга.
         if (settings.IsOverlayEnabled)
         {
-            AddOverlay(
-                reminder,
-                settings);
+            AddOverlay(reminder, settings);
         }
         else if (settings.IsAlarmEnabled)
         {
@@ -2049,20 +2042,31 @@ public sealed class ReminderOverlayService : Service
 
     public override void OnDestroy()
     {
+        if (ReferenceEquals(Current, this))
+        {
+            Current = null;
+        }
+
         RemoveOverlay();
         StopAlarmSignal();
+
         base.OnDestroy();
     }
 
-    //private Notification BuildForegroundNotification() => new NotificationCompat.Builder(this, AndroidReminderNotificationService.OverlayForegroundChannelId)
-    //    .SetSmallIcon(Resource.Drawable.notification_icon)
-    //    .SetContentTitle("Служба напоминаний")
-    //    .SetContentText("Показ окна напоминания")
-    //    .SetPriority(NotificationCompat.PriorityMin)
-    //    .SetSilent(true)
-    //    .SetOngoing(true)
-    //    .SetLocalOnly(true)
-    //    .Build();
+    private Notification BuildForegroundNotification()
+    {
+        return new NotificationCompat.Builder(
+            this,
+            AndroidReminderNotificationService.OverlayForegroundChannelId)
+            .SetSmallIcon(Resource.Drawable.notification_icon)
+            .SetContentTitle("Служба напоминаний")
+            .SetContentText("Показ окна напоминания")
+            .SetPriority(NotificationCompat.PriorityMin)
+            .SetSilent(true)
+            .SetOngoing(true)
+            .SetLocalOnly(true)
+            .Build();
+    }
 
     private void AddOverlay(ReminderItem reminder, NotificationTimeSettings settings)
     {
@@ -2341,7 +2345,7 @@ public sealed class ReminderOverlayService : Service
         }
     }
 
-    private void DismissReminderOverlay(int targetReminderId)
+    internal void DismissReminderOverlay(int targetReminderId)
     {
         pendingOverlays = new Queue<PendingOverlay>(
             pendingOverlays.Where(
@@ -2378,8 +2382,11 @@ public sealed class ReminderOverlayService : Service
 
         Notification notification = new NotificationCompat.Builder(this, AndroidReminderNotificationService.AlarmChannelId)
             .SetSmallIcon(Resource.Drawable.notification_icon)
-            .SetContentTitle("Напоминание")
-            .SetContentText(reminder.Text)
+            .SetContentTitle(reminder.Text)
+            .SetContentText(
+                ReminderDisplayFormatter.GetDisplayText(
+                    reminder.DisplayStart,
+                    reminder.DisplayEnd))
             .SetStyle(new NotificationCompat.BigTextStyle().BigText(reminder.Text))
             .SetPriority(NotificationCompat.PriorityMax)
             .SetCategory(NotificationCompat.CategoryAlarm)

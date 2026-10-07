@@ -561,12 +561,13 @@ public partial class ReminderEditorPage : ContentPage
             }
         }
 
-
         UpdateDisplayPeriodLabel();
 
         UpdateAutoCompleteControls();
 
         UpdateNotificationReferenceButtons();
+
+        UpdateNotificationDirectionWheel();
 
         UpdateTimerFromSelectedBoundary();
 
@@ -748,9 +749,7 @@ public partial class ReminderEditorPage : ContentPage
         object? sender,
         EventArgs e)
     {
-        // --------------------------------------------------------
-        // Значения по умолчанию
-        // --------------------------------------------------------
+        UpdateNotificationDirectionWheel();
 
         notificationReference =
             NotificationReference.Now;
@@ -764,7 +763,6 @@ public partial class ReminderEditorPage : ContentPage
         notificationUnitIndex =
             1; // Час
 
-
         pendingNotificationDirectionIndex =
             0;
 
@@ -774,15 +772,12 @@ public partial class ReminderEditorPage : ContentPage
         pendingNotificationUnitIndex =
             1;
 
-
         UpdateNotificationReferenceButtons();
 
         UpdateNotificationWheelVisuals();
 
-
         NotificationAddOverlay.IsVisible =
             true;
-
 
         await Task.Delay(50);
 
@@ -909,11 +904,17 @@ public partial class ReminderEditorPage : ContentPage
         // ЧЕРЕЗ / ЗА
         // ========================================================
 
+        if (notificationDirectionIndex == 1 &&
+    displayStart is null &&
+    displayEnd is null)
+        {
+            notificationDirectionIndex = 0;
+            pendingNotificationDirectionIndex = 0;
+        }
+
         DateTime notificationTime =
             notificationDirectionIndex == 0
-
                 ? baseDateTime + offset
-
                 : baseDateTime - offset;
 
 
@@ -956,36 +957,53 @@ public partial class ReminderEditorPage : ContentPage
     // КОГДА?
     // ============================================================
 
-    private void OnNotificationNowClicked(
-        object? sender,
-        EventArgs e)
+    private void OnNotificationNowClicked(object? sender, EventArgs e)
     {
-        notificationReference =
-            NotificationReference.Now;
+        notificationReference = NotificationReference.Now;
+
+        notificationDirectionIndex = 0;
+        pendingNotificationDirectionIndex = 0;
 
         UpdateNotificationReferenceButtons();
+        UpdateNotificationWheelVisuals();
+
+        _ = PositionNotificationWheelsAsync();
     }
 
 
-    private void OnNotificationStartClicked(
-        object? sender,
-        EventArgs e)
+    private void OnNotificationStartClicked(object? sender, EventArgs e)
     {
-        notificationReference =
-            NotificationReference.Start;
+        notificationReference = NotificationReference.Start;
+
+        // Для "Начало" автоматически выбираем "За"
+        if (displayStart is not null || displayEnd is not null)
+        {
+            notificationDirectionIndex = 1;
+            pendingNotificationDirectionIndex = 1;
+        }
 
         UpdateNotificationReferenceButtons();
+        UpdateNotificationWheelVisuals();
+
+        _ = PositionNotificationWheelsAsync();
     }
 
 
-    private void OnNotificationEndClicked(
-        object? sender,
-        EventArgs e)
+    private void OnNotificationEndClicked(object? sender, EventArgs e)
     {
-        notificationReference =
-            NotificationReference.End;
+        notificationReference = NotificationReference.End;
+
+        // Для "Конец" автоматически выбираем "За"
+        if (displayStart is not null || displayEnd is not null)
+        {
+            notificationDirectionIndex = 1;
+            pendingNotificationDirectionIndex = 1;
+        }
 
         UpdateNotificationReferenceButtons();
+        UpdateNotificationWheelVisuals();
+
+        _ = PositionNotificationWheelsAsync();
     }
 
 
@@ -1225,18 +1243,21 @@ public partial class ReminderEditorPage : ContentPage
         object? sender,
         ScrolledEventArgs e)
     {
+        int itemCount =
+            displayStart is not null ||
+            displayEnd is not null
+                ? 2
+                : 1;
+
         pendingNotificationDirectionIndex =
             GetNotificationWheelIndex(
                 e.ScrollY,
-                2);
-
+                itemCount);
 
         notificationDirectionIndex =
             pendingNotificationDirectionIndex;
 
-
         UpdateNotificationWheelVisuals();
-
 
         if (!isNotificationWheelProgrammaticScroll)
         {
@@ -1568,44 +1589,61 @@ public partial class ReminderEditorPage : ContentPage
 
     private void InitializeNotificationWheels()
     {
-        CreateNotificationWheel(
-            NotificationDirectionWheelLayout,
-            new[]
-            {
-                "Чер",
-                "За",
-            });
-
+        UpdateNotificationDirectionWheel();
 
         CreateNotificationWheel(
             NotificationAmountWheelLayout,
             Enumerable.Range(1, 99)
-                .Select(
-                    x => x.ToString())
+                .Select(x => x.ToString())
                 .ToArray());
-
 
         CreateNotificationWheel(
             NotificationUnitWheelLayout,
             new[]
             {
-                "Мин",
-                "Час",
-                "Ден",
+            "Мин",
+            "Час",
+            "Ден",
             });
 
-
-        pendingNotificationDirectionIndex =
-            0;
-
-        pendingNotificationAmount =
-            1;
-
-        pendingNotificationUnitIndex =
-            1;
-
+        pendingNotificationDirectionIndex = 0;
+        pendingNotificationAmount = 1;
+        pendingNotificationUnitIndex = 1;
 
         UpdateNotificationWheelVisuals();
+    }
+
+    private void UpdateNotificationDirectionWheel()
+    {
+        NotificationDirectionWheelLayout.Children.Clear();
+
+        bool hasDisplayPeriod =
+            displayStart is not null ||
+            displayEnd is not null;
+
+        if (hasDisplayPeriod)
+        {
+            CreateNotificationWheel(
+                NotificationDirectionWheelLayout,
+                new[]
+                {
+                "Чер",
+                "За",
+                });
+        }
+        else
+        {
+            CreateNotificationWheel(
+                NotificationDirectionWheelLayout,
+                new[]
+                {
+                "Чер",
+                });
+
+            // Если периода нет, "За" физически недоступно.
+            notificationDirectionIndex = 0;
+            pendingNotificationDirectionIndex = 0;
+        }
     }
 
 
@@ -1699,6 +1737,7 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
+    //проверить работоспособность
     private void OnDeleteNotificationClicked(
         object? sender,
         EventArgs e)
@@ -1712,6 +1751,21 @@ public partial class ReminderEditorPage : ContentPage
 
             notificationTimes.Remove(
                 item);
+
+            RequestAutoSave();
+        }
+    }
+    //проверить работоспособность
+
+    private void OnDuplicateNotificationClicked(
+    object? sender,
+    EventArgs e)
+    {
+        if (sender is Button button &&
+            button.CommandParameter
+                is NotificationTimeItem item)
+        {
+            AddNotificationTime(item.Time.AddHours(1));
 
             RequestAutoSave();
         }
@@ -2711,6 +2765,14 @@ EventArgs e)
 
             UpdateSelectedDateTimeLabels();
 
+            UpdateDisplayPeriodLabel();
+
+            UpdateAutoCompleteControls();
+
+            UpdateNotificationReferenceButtons();
+
+            UpdateNotificationDirectionWheel();
+
             UpdateTimerFromCurrentTarget();
 
             RequestAutoSave();
@@ -2944,6 +3006,8 @@ EventArgs e)
         UpdateAutoCompleteControls();
 
         UpdateNotificationReferenceButtons();
+
+        UpdateNotificationDirectionWheel();
 
         UpdateTimerFromDateTimePicker();
 

@@ -118,7 +118,7 @@
                                     StrokeShape="RoundRectangle 8"
                                     BackgroundColor="{AppThemeBinding Light=#EEF4FF, Dark=#1F2A36}">
 
-                                <Grid ColumnDefinitions="*,Auto,40,40,40">
+                                <Grid ColumnDefinitions="*,Auto,Auto,40,40,40">
 
                                     <Label Text="{Binding DisplayText}"
                                            VerticalOptions="Center">
@@ -133,8 +133,17 @@
 
                                     </Label>
 
-
                                     <Button Grid.Column="1"
+                                            Margin="0,2,8,2"
+        Text="⧉"
+        FontAttributes="Bold"                        
+        CommandParameter="{Binding .}"
+        HeightRequest="30"
+        WidthRequest="30"
+        Clicked="OnDuplicateNotificationClicked" />
+
+                                    <Button Grid.Column="2"
+                                            Margin="0,2,0,2"
                                             Text="✖"
                                             CommandParameter="{Binding .}"
                                             HeightRequest="30"
@@ -142,16 +151,15 @@
                                             Clicked="OnDeleteNotificationClicked" />
 
 
-                                    <CheckBox Grid.Column="2"
+                                    <CheckBox Grid.Column="3"
                                               IsChecked="{Binding IsOverlayEnabled, Mode=TwoWay}" />
                                     <!-- OVERLAY -->
 
-                                    <CheckBox Grid.Column="3"
+                                    <CheckBox Grid.Column="4"
                                               IsChecked="{Binding IsPushEnabled, Mode=TwoWay}" />
                                     <!-- PUSH -->
 
-
-                                    <CheckBox Grid.Column="4"
+                                    <CheckBox Grid.Column="5"
                                               IsChecked="{Binding IsAlarmEnabled, Mode=TwoWay}" />
                                     <!-- ALARM -->
 

@@ -336,14 +336,43 @@ public partial class MainPage : ContentPage
         }
     }
 
-    private static IOrderedEnumerable<ReminderItem> OrderReminders(
+    //private static IOrderedEnumerable<ReminderItem> OrderReminders(
+    //IEnumerable<ReminderItem> source,
+    //DateTime now)
+    //{
+    //    if (true)
+    //        return source
+    //            .OrderBy(GetReminderSortGroup)
+    //            .ThenBy(GetReminderSortTime)
+    //            .ThenBy(static reminder => reminder.Id);
+    //    else
+    //        return source
+    //            .OrderBy(reminder => GetRelevantDisplayTime(reminder, now))
+    //            .ThenBy(reminder => GetReminderPriority(reminder, now))
+    //            .ThenBy(static reminder => reminder.Id);
+    //}
+
+    private static IEnumerable<ReminderItem> OrderReminders(
         IEnumerable<ReminderItem> source,
         DateTime now)
     {
-        return source
-            .OrderBy(reminder => GetRelevantDisplayTime(reminder, now))
-            .ThenBy(reminder => GetReminderPriority(reminder, now))
-            .ThenBy(static reminder => reminder.Id);
+        var list = source.ToList();
+
+        var withStart = list
+            .Where(r => r.DisplayStart is not null)
+            .OrderBy(r => r.DisplayStart!.Value)
+            .ThenBy(r => r.Id);
+
+        var withEndOnly = list
+            .Where(r => r.DisplayStart is null && r.DisplayEnd is not null)
+            .OrderBy(r => r.DisplayEnd!.Value)
+            .ThenBy(r => r.Id);
+
+        var withoutDates = list
+            .Where(r => r.DisplayStart is null && r.DisplayEnd is null)
+            .OrderByDescending(r => r.Id);
+
+        return withStart.Concat(withEndOnly).Concat(withoutDates);
     }
 
     private static int GetReminderPriority(ReminderItem reminder, DateTime now)
@@ -364,6 +393,31 @@ public partial class MainPage : ContentPage
     private static DateTime GetRelevantDisplayTime(ReminderItem reminder, DateTime now)
     {
         return GetReminderPriority(reminder, now) switch
+        {
+            0 => reminder.DisplayStart!.Value,
+            1 => reminder.DisplayEnd!.Value,
+            _ => DateTime.MaxValue,
+        };
+    }
+
+    private static int GetReminderSortGroup(ReminderItem reminder)
+    {
+        if (reminder.DisplayStart is not null)
+        {
+            return 0;
+        }
+
+        if (reminder.DisplayEnd is not null)
+        {
+            return 1;
+        }
+
+        return 2;
+    }
+
+    private static DateTime GetReminderSortTime(ReminderItem reminder)
+    {
+        return GetReminderSortGroup(reminder) switch
         {
             0 => reminder.DisplayStart!.Value,
             1 => reminder.DisplayEnd!.Value,
