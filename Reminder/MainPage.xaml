@@ -9,21 +9,61 @@
           RowDefinitions="Auto,*,Auto"
           RowSpacing="0">
 
-        <!-- Область прокрутки -->
         <CollectionView x:Name="RemindersCollectionView"
                         Grid.Row="1"
                         EmptyView="Напоминаний пока нет">
 
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="local:ReminderItem">
+
                     <Border Margin="0,0,0,12"
                             Padding="16"
                             StrokeShape="RoundRectangle 12"
                             BackgroundColor="{AppThemeBinding Light=#FFF8D6, Dark=#4B421D}">
 
+                        <Border.Triggers>
+
+                            <DataTrigger TargetType="Border"
+                                         Binding="{Binding Group}"
+                                         Value="1">
+                                <Setter Property="BackgroundColor"
+                                        Value="#FF6B6B" />
+                            </DataTrigger>
+
+                            <DataTrigger TargetType="Border"
+                                         Binding="{Binding Group}"
+                                         Value="2">
+                                <Setter Property="BackgroundColor"
+                                        Value="#FFD93D" />
+                            </DataTrigger>
+
+                            <DataTrigger TargetType="Border"
+                                         Binding="{Binding Group}"
+                                         Value="3">
+                                <Setter Property="BackgroundColor"
+                                        Value="Transparent" />
+                            </DataTrigger>
+
+                            <DataTrigger TargetType="Border"
+                                         Binding="{Binding Group}"
+                                         Value="4">
+                                <Setter Property="BackgroundColor"
+                                        Value="#4D96FF" />
+                            </DataTrigger>
+
+                        </Border.Triggers>
+
                         <Border.GestureRecognizers>
+
                             <TapGestureRecognizer Tapped="OnReminderTapped"
                                                    CommandParameter="{Binding .}" />
+
+                            <LongPressGestureRecognizer
+                                MinimumPressDuration="500"
+                                AllowableMovement="10"
+                                LongPressed="OnReminderLongPressed"
+                                CommandParameter="{Binding .}" />
+
                         </Border.GestureRecognizers>
 
                         <VerticalStackLayout Spacing="10">
@@ -41,12 +81,12 @@
                         </VerticalStackLayout>
 
                     </Border>
+
                 </DataTemplate>
             </CollectionView.ItemTemplate>
 
         </CollectionView>
 
-        <!-- Кнопки находятся уже вне области прокрутки -->
         <Grid Grid.Row="2"
               ColumnDefinitions="*,*"
               ColumnSpacing="12"
@@ -62,6 +102,87 @@
                     HeightRequest="40"
                     Text="Создать"
                     Clicked="OnCreateClicked" />
+
+        </Grid>
+
+        <!-- Окно выбора группы -->
+        <Grid x:Name="GroupSelectionOverlay"
+              Grid.Row="0"
+              Grid.RowSpan="3"
+              IsVisible="False"
+              ZIndex="100"
+              BackgroundColor="#80000000"
+              Padding="24">
+
+            <Border HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    Padding="20"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 16"
+                    BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#252525}">
+
+                <VerticalStackLayout Spacing="16">
+
+                    <Label Text="Группы:"
+                           FontAttributes="Bold"
+                           FontSize="20"
+                           HorizontalOptions="Center" />
+
+                    <HorizontalStackLayout
+                        HorizontalOptions="Center"
+                        Spacing="12">
+
+                        <!-- Группа 1 -->
+                        <Button Text="[ 1 ]"
+                                WidthRequest="54"
+                                HeightRequest="54"
+                                Padding="0"
+                                CornerRadius="0"
+                                BackgroundColor="#FF6B6B"
+                                TextColor="White"
+                                CommandParameter="1"
+                                Clicked="OnGroupButtonClicked" />
+
+                        <!-- Группа 2 -->
+                        <Button Text="[ 2 ]"
+                                WidthRequest="54"
+                                HeightRequest="54"
+                                Padding="0"
+                                CornerRadius="0"
+                                BackgroundColor="#FFD93D"
+                                TextColor="Black"
+                                CommandParameter="2"
+                                Clicked="OnGroupButtonClicked" />
+
+                        <!-- Группа 3 -->
+                        <Button Text="[ 3 ]"
+                                WidthRequest="54"
+                                HeightRequest="54"
+                                Padding="0"
+                                CornerRadius="0"
+                                BackgroundColor="Transparent"
+                                BorderColor="{AppThemeBinding Light=#808080, Dark=#B0B0B0}"
+                                BorderWidth="1"
+                                TextColor="{AppThemeBinding Light=#000000, Dark=#FFFFFF}"
+                                CommandParameter="3"
+                                Clicked="OnGroupButtonClicked" />
+
+                        <!-- Группа 4 -->
+                        <Button Text="[ 4 ]"
+                                WidthRequest="54"
+                                HeightRequest="54"
+                                Padding="0"
+                                CornerRadius="0"
+                                BackgroundColor="#4D96FF"
+                                TextColor="White"
+                                CommandParameter="4"
+                                Clicked="OnGroupButtonClicked" />
+
+                    </HorizontalStackLayout>
+
+                </VerticalStackLayout>
+
+            </Border>
 
         </Grid>
 

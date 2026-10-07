@@ -1,7 +1,8 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using Microsoft.Extensions.DependencyInjection;
+using static Android.Views.GestureDetector;
 
 namespace Reminder;
 
@@ -12,6 +13,7 @@ public partial class MainPage : ContentPage
     private readonly ReminderStore store;
     private readonly IReminderNotificationService notificationService;
     private readonly SemaphoreSlim editorNavigationSemaphore = new(1, 1);
+    private ReminderItem? groupSelectionReminder;
     private int? openEditorReminderId;
     private readonly IDispatcherTimer autoCompleteTimer;
     private bool isSortingReminders;
@@ -34,6 +36,44 @@ public partial class MainPage : ContentPage
         autoCompleteTimer.Interval = TimeSpan.FromSeconds(30);
         autoCompleteTimer.Tick += (_, _) => CompleteExpiredAutoCompleteReminders();
         autoCompleteTimer.Start();
+    }
+
+    private void OnReminderLongPressed(object? sender, LongPressedEventArgs e)
+    {
+        if (e.Parameter is not ReminderItem reminder)
+        {
+            return;
+        }
+
+        groupSelectionReminder = reminder;
+        GroupSelectionOverlay.IsVisible = true;
+    }
+
+    private void OnGroupButtonClicked(object? sender, EventArgs e)
+    {
+        if (groupSelectionReminder is null)
+        {
+            return;
+        }
+
+        if (sender is not Button button ||
+            !int.TryParse(button.CommandParameter?.ToString(), out int group))
+        {
+            return;
+        }
+
+        if (group < 1 || group > 4)
+        {
+            return;
+        }
+
+        groupSelectionReminder.Group = group;
+
+        // Изменение группы сохраняется вместе с ReminderItem.
+        SaveReminders();
+
+        GroupSelectionOverlay.IsVisible = false;
+        groupSelectionReminder = null;
     }
 
     protected override async void OnAppearing()

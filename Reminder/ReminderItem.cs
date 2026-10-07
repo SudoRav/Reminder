@@ -1,12 +1,12 @@
+using Reminder;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-
-namespace Reminder;
 
 public sealed class ReminderItem : INotifyPropertyChanged
 {
     private DateTime? displayStart;
     private DateTime? displayEnd;
+    private int group = 3;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -26,6 +26,19 @@ public sealed class ReminderItem : INotifyPropertyChanged
         set => SetField(ref displayEnd, value);
     }
 
+    /// <summary>
+    /// Текущая группа напоминания:
+    /// 1 - красная
+    /// 2 - жёлтая
+    /// 3 - прозрачная
+    /// 4 - синяя
+    /// </summary>
+    public int Group
+    {
+        get => group;
+        set => SetField(ref group, Math.Clamp(value, 1, 4));
+    }
+
     public bool AutoCompleteOnDisplayEnd { get; set; }
 
     /// <summary>
@@ -39,7 +52,7 @@ public sealed class ReminderItem : INotifyPropertyChanged
     public List<NotificationTimeSettings> NotificationTimeSettings { get; set; } = [];
 
     public DateTime? CompletedAt { get; set; }
-        
+
     public NotificationTimeSettings GetNotificationSettings(DateTime notificationTime)
     {
         NotificationTimeSettings? settings = NotificationTimeSettings
@@ -68,7 +81,10 @@ public sealed class ReminderItem : INotifyPropertyChanged
             .ToList();
     }
 
-    private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private void SetField<T>(
+        ref T field,
+        T value,
+        [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
@@ -76,6 +92,8 @@ public sealed class ReminderItem : INotifyPropertyChanged
         }
 
         field = value;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        PropertyChanged?.Invoke(
+            this,
+            new PropertyChangedEventArgs(propertyName));
     }
 }
