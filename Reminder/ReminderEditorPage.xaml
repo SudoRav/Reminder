@@ -78,7 +78,7 @@
                 <!-- НАЧАЛО / КОНЕЦ                                      -->
                 <!-- ================================================== -->
 
-                <Grid ColumnDefinitions="*,*"
+                <Grid ColumnDefinitions="*,*,Auto"
                       ColumnSpacing="12">
 
                     <Button x:Name="StartButton"
@@ -89,6 +89,20 @@
                             Grid.Column="1"
                             Text="Конец"
                             Clicked="OnEndClicked" />
+
+                    <Button x:Name="GroupButton"
+        Grid.Column="2"
+        WidthRequest="54"
+        HeightRequest="54"
+        MinimumWidthRequest="54"
+        MinimumHeightRequest="54"
+        Padding="0"
+        CornerRadius="12"
+        BackgroundColor="Transparent"
+        BorderColor="{AppThemeBinding Light=#808080, Dark=#B0B0B0}"
+        BorderWidth="1"
+        Text=""
+        Clicked="OnGroupButtonClicked" />
 
                 </Grid>
 
@@ -430,6 +444,90 @@
 
         </Grid>
 
+        <!-- ========================================================== -->
+        <!-- ОКНО ВЫБОРА ГРУППЫ                                         -->
+        <!-- ========================================================== -->
+
+        <Grid x:Name="GroupSelectionOverlay"
+      Grid.RowSpan="2"
+      Padding="24"
+      BackgroundColor="#80000000"
+      IsVisible="False"
+      ZIndex="300">
+
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnGroupSelectionOverlayTapped" />
+            </Grid.GestureRecognizers>
+
+            <Border HorizontalOptions="Center"
+            VerticalOptions="Center"
+            Padding="20"
+            StrokeThickness="0"
+            StrokeShape="RoundRectangle 16"
+            BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#252525}">
+
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnGroupSelectionOverlayTapped" />
+                </Border.GestureRecognizers>
+
+                <VerticalStackLayout Spacing="16">
+
+                    <VerticalStackLayout HorizontalOptions="Center"
+                                 Spacing="12">
+
+                        <!-- Группа 1 -->
+                        <Button Text=""
+                        WidthRequest="54"
+                        HeightRequest="54"
+                        Padding="0"
+                        CornerRadius="12"
+                        BackgroundColor="#FF6B6B"
+                        TextColor="White"
+                        CommandParameter="1"
+                        Clicked="OnEditorGroupButtonClicked" />
+
+                        <!-- Группа 2 -->
+                        <Button Text=""
+                        WidthRequest="54"
+                        HeightRequest="54"
+                        Padding="0"
+                        CornerRadius="12"
+                        BackgroundColor="#FFD93D"
+                        TextColor="Black"
+                        CommandParameter="2"
+                        Clicked="OnEditorGroupButtonClicked" />
+
+                        <!-- Группа 3 -->
+                        <Button Text=""
+                        WidthRequest="54"
+                        HeightRequest="54"
+                        Padding="0"
+                        CornerRadius="12"
+                        BackgroundColor="Transparent"
+                        BorderColor="{AppThemeBinding Light=#808080, Dark=#B0B0B0}"
+                        BorderWidth="1"
+                        TextColor="{AppThemeBinding Light=#000000, Dark=#FFFFFF}"
+                        CommandParameter="3"
+                        Clicked="OnEditorGroupButtonClicked" />
+
+                        <!-- Группа 4 -->
+                        <Button Text=""
+                        WidthRequest="54"
+                        HeightRequest="54"
+                        Padding="0"
+                        CornerRadius="12"
+                        BackgroundColor="#4D96FF"
+                        TextColor="White"
+                        CommandParameter="4"
+                        Clicked="OnEditorGroupButtonClicked" />
+
+                    </VerticalStackLayout>
+
+                </VerticalStackLayout>
+
+            </Border>
+
+        </Grid>
 
         <!-- ========================================================== -->
         <!-- ОКНО ВЫБОРА ДАТЫ / ВРЕМЕНИ                                 -->
@@ -697,10 +795,12 @@
                                   ColumnSpacing="5">
 
                                 <Button Grid.Column="0"
+                                        FontAttributes="Bold"
                                         Text="-1 День"
                                         Clicked="rem1day" />
 
                                 <Button Grid.Column="1"
+                                        FontAttributes="Bold"
                                         Text="+1 День"
                                         Clicked="add1day" />
 
@@ -724,19 +824,22 @@
 
                                 <Button Grid.Row="0"
                                         Grid.Column="0"
-                                        Text="Утро 6:00"
+                                        FontAttributes="Bold"
+                                        Text="6:00"
                                         Padding="-5"
                                         Clicked="settime0600" />
 
                                 <Button Grid.Row="0"
                                         Grid.Column="1"
+                                        FontAttributes="Bold"
                                         Text="9:00"
                                         Padding="-5"
                                         Clicked="settime0900" />
 
                                 <Button Grid.Row="0"
                                         Grid.Column="2"
-                                        Text="Д 12:00"
+                                        FontAttributes="Bold"
+                                        Text="12:00"
                                         Padding="-5"
                                         Clicked="settime1200" />
 
@@ -744,19 +847,22 @@
                                 
                                 <Button Grid.Row="1"
                                         Grid.Column="0"
-                                        Text="День 15:00"
+                                        FontAttributes="Bold"
+                                        Text="15:00"
                                         Padding="-5"
                                         Clicked="settime1500" />
 
                                 <Button Grid.Row="1"
                                         Grid.Column="1"
+                                        FontAttributes="Bold"
                                         Text="18:00"
                                         Padding="-5"
                                         Clicked="settime1800" />
 
                                 <Button Grid.Row="1"
                                         Grid.Column="2"
-                                        Text="Вечер 21:00"
+                                        FontAttributes="Bold"
+                                        Text="21:00"
                                         Padding="-5"
                                         Clicked="settime2100" />
 

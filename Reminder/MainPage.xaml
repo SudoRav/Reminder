@@ -17,67 +17,86 @@
                 <DataTemplate x:DataType="local:ReminderItem">
 
                     <Border Margin="0,0,0,12"
-        Padding="16"
+        Padding="0"
+        StrokeThickness="1"
         StrokeShape="RoundRectangle 12"
-        BackgroundColor="{AppThemeBinding Light=#FFF8D6, Dark=#4B421D}">
+        BackgroundColor="Transparent">
 
-                        <Border.Triggers>
+                        <Grid ColumnDefinitions="*,Auto">
 
-                            <DataTrigger TargetType="Border"
-                     Binding="{Binding Group}"
-                     Value="1">
-                                <Setter Property="BackgroundColor"
-                    Value="#FF6B6B" />
-                            </DataTrigger>
+                            <!-- Левая часть -->
+                            <VerticalStackLayout Grid.Column="0" Padding="16" Spacing="10">
 
-                            <DataTrigger TargetType="Border"
-                     Binding="{Binding Group}"
-                     Value="2">
-                                <Setter Property="BackgroundColor"
-                    Value="#FFD93D" />
-                            </DataTrigger>
+                                <VerticalStackLayout.GestureRecognizers>
 
-                            <DataTrigger TargetType="Border"
-                     Binding="{Binding Group}"
-                     Value="3">
-                                <Setter Property="BackgroundColor"
-                    Value="Transparent" />
-                            </DataTrigger>
+                                    <TapGestureRecognizer Tapped="OnReminderTapped"
+                                      CommandParameter="{Binding .}" />
 
-                            <DataTrigger TargetType="Border"
-                     Binding="{Binding Group}"
-                     Value="4">
-                                <Setter Property="BackgroundColor"
-                    Value="#4D96FF" />
-                            </DataTrigger>
+                                </VerticalStackLayout.GestureRecognizers>
 
-                        </Border.Triggers>
+                                <Label Text="{Binding ., Converter={StaticResource ReminderListPeriodConverter}}"
+                   FontAttributes="Bold"
+                   FontSize="14"
+                   IsVisible="{Binding ., Converter={StaticResource ReminderListPeriodVisibilityConverter}}"
+                   LineBreakMode="WordWrap" />
 
-                        <Border.GestureRecognizers>
+                                <Label Text="{Binding Text}"
+                   FontSize="18"
+                   LineBreakMode="WordWrap" />
 
-                            <TapGestureRecognizer Tapped="OnReminderTapped"
-                              CommandParameter="{Binding .}" />
+                            </VerticalStackLayout>
 
-                            <PointerGestureRecognizer
-            PointerPressed="OnReminderPointerPressed"
-            PointerReleased="OnReminderPointerReleased"
-            PointerExited="OnReminderPointerExited" />
+                            <!-- Правая кнопка -->
+                            <Button Grid.Column="1"
+            WidthRequest="24"
+            MinimumWidthRequest="0"
+            MinimumHeightRequest="0"
+            VerticalOptions="Fill"
+            HorizontalOptions="End"
+            Margin="0,0.2,1,1"
+            Padding="0"
+            CornerRadius="12"
+            BorderColor="White"
+            BorderWidth="1"
+            BackgroundColor="Transparent"
+            CommandParameter="{Binding .}"
+            Clicked="OnGroupSelectionButtonClicked">
 
-                        </Border.GestureRecognizers>
+                                <Button.Triggers>
 
-                        <VerticalStackLayout Spacing="10">
+                                    <DataTrigger TargetType="Button"
+                             Binding="{Binding Group}"
+                             Value="1">
+                                        <Setter Property="BackgroundColor"
+                            Value="#FF6B6B" />
+                                    </DataTrigger>
 
-                            <Label Text="{Binding ., Converter={StaticResource ReminderListPeriodConverter}}"
-               FontAttributes="Bold"
-               FontSize="14"
-               IsVisible="{Binding ., Converter={StaticResource ReminderListPeriodVisibilityConverter}}"
-               LineBreakMode="WordWrap" />
+                                    <DataTrigger TargetType="Button"
+                             Binding="{Binding Group}"
+                             Value="2">
+                                        <Setter Property="BackgroundColor"
+                            Value="#FFD93D" />
+                                    </DataTrigger>
 
-                            <Label Text="{Binding Text}"
-               FontSize="18"
-               LineBreakMode="WordWrap" />
+                                    <DataTrigger TargetType="Button"
+                             Binding="{Binding Group}"
+                             Value="3">
+                                        <Setter Property="BackgroundColor"
+                            Value="Transparent" />
+                                    </DataTrigger>
 
-                        </VerticalStackLayout>
+                                    <DataTrigger TargetType="Button"
+                             Binding="{Binding Group}"
+                             Value="4">
+                                        <Setter Property="BackgroundColor"
+                            Value="#4D96FF" />
+                                    </DataTrigger>
+
+                                </Button.Triggers>
+
+                            </Button>
+
+                        </Grid>
 
                     </Border>
 
@@ -106,78 +125,76 @@
 
         <!-- Окно выбора группы -->
         <Grid x:Name="GroupSelectionOverlay"
-              Grid.Row="0"
-              Grid.RowSpan="3"
-              IsVisible="False"
-              ZIndex="100"
-              BackgroundColor="#80000000"
-              Padding="24">
+      Grid.Row="0"
+      Grid.RowSpan="3"
+      IsVisible="False"
+      ZIndex="100"
+      BackgroundColor="#80000000"
+      Padding="24">
+
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnGroupSelectionOverlayTapped" />
+            </Grid.GestureRecognizers>
 
             <Border HorizontalOptions="Center"
-                    VerticalOptions="Center"
-                    Padding="20"
-                    StrokeThickness="0"
-                    StrokeShape="RoundRectangle 16"
-                    BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#252525}">
+            VerticalOptions="Center"
+            Padding="20"
+            StrokeThickness="0"
+            StrokeShape="RoundRectangle 16"
+            BackgroundColor="{AppThemeBinding Light=Transparent, Dark=#252525}">
 
                 <VerticalStackLayout Spacing="16">
 
-                    <Label Text="Группы:"
-                           FontAttributes="Bold"
-                           FontSize="20"
-                           HorizontalOptions="Center" />
-
-                    <HorizontalStackLayout
-                        HorizontalOptions="Center"
-                        Spacing="12">
+                    <VerticalStackLayout HorizontalOptions="Center"
+                                 Spacing="12">
 
                         <!-- Группа 1 -->
-                        <Button Text="[ 1 ]"
-                                WidthRequest="54"
-                                HeightRequest="54"
-                                Padding="0"
-                                CornerRadius="0"
-                                BackgroundColor="#FF6B6B"
-                                TextColor="White"
-                                CommandParameter="1"
-                                Clicked="OnGroupButtonClicked" />
+                        <Button Text=""
+                        WidthRequest="54"
+                        HeightRequest="54"
+                        Padding="0"
+                        CornerRadius="12"
+                        BackgroundColor="#FF6B6B"
+                        TextColor="White"
+                        CommandParameter="1"
+                        Clicked="OnGroupButtonClicked" />
 
                         <!-- Группа 2 -->
-                        <Button Text="[ 2 ]"
-                                WidthRequest="54"
-                                HeightRequest="54"
-                                Padding="0"
-                                CornerRadius="0"
-                                BackgroundColor="#FFD93D"
-                                TextColor="Black"
-                                CommandParameter="2"
-                                Clicked="OnGroupButtonClicked" />
+                        <Button Text=""
+                        WidthRequest="54"
+                        HeightRequest="54"
+                        Padding="0"
+                        CornerRadius="12"
+                        BackgroundColor="#FFD93D"
+                        TextColor="Black"
+                        CommandParameter="2"
+                        Clicked="OnGroupButtonClicked" />
 
                         <!-- Группа 3 -->
-                        <Button Text="[ 3 ]"
-                                WidthRequest="54"
-                                HeightRequest="54"
-                                Padding="0"
-                                CornerRadius="0"
-                                BackgroundColor="Transparent"
-                                BorderColor="{AppThemeBinding Light=#808080, Dark=#B0B0B0}"
-                                BorderWidth="1"
-                                TextColor="{AppThemeBinding Light=#000000, Dark=#FFFFFF}"
-                                CommandParameter="3"
-                                Clicked="OnGroupButtonClicked" />
+                        <Button Text=""
+                        WidthRequest="54"
+                        HeightRequest="54"
+                        Padding="0"
+                        CornerRadius="12"
+                        BackgroundColor="Transparent"
+                        BorderColor="{AppThemeBinding Light=#808080, Dark=#B0B0B0}"
+                        BorderWidth="1"
+                        TextColor="{AppThemeBinding Light=#000000, Dark=#FFFFFF}"
+                        CommandParameter="3"
+                        Clicked="OnGroupButtonClicked" />
 
                         <!-- Группа 4 -->
-                        <Button Text="[ 4 ]"
-                                WidthRequest="54"
-                                HeightRequest="54"
-                                Padding="0"
-                                CornerRadius="0"
-                                BackgroundColor="#4D96FF"
-                                TextColor="White"
-                                CommandParameter="4"
-                                Clicked="OnGroupButtonClicked" />
+                        <Button Text=""
+                        WidthRequest="54"
+                        HeightRequest="54"
+                        Padding="0"
+                        CornerRadius="12"
+                        BackgroundColor="#4D96FF"
+                        TextColor="White"
+                        CommandParameter="4"
+                        Clicked="OnGroupButtonClicked" />
 
-                    </HorizontalStackLayout>
+                    </VerticalStackLayout>
 
                 </VerticalStackLayout>
 

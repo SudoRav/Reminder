@@ -89,8 +89,41 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     internal static void NotifyReminderCompleted(int reminderId) =>
         ReminderCompleted?.Invoke(reminderId);
 
-    internal static void NotifyReminderEditorRequested(int reminderId) =>
-        ReminderEditorRequested?.Invoke(reminderId);
+    internal static void NotifyReminderEditorRequested(int reminderId)
+    {
+        Action<int>? handler;
+
+        lock (reminderEditorRequestLock)
+        {
+            handler = ReminderEditorRequested;
+
+            if (handler is null)
+            {
+                pendingReminderEditorId = reminderId;
+                return;
+            }
+        }
+
+        handler(reminderId);
+    }
+
+    internal static int? ConsumePendingReminderEditorRequest()
+    {
+        lock (reminderEditorRequestLock)
+        {
+            int? reminderId =
+                pendingReminderEditorId;
+
+            pendingReminderEditorId =
+                null;
+
+            return reminderId;
+        }
+    }
+
+    private static readonly object reminderEditorRequestLock = new();
+
+    private static int? pendingReminderEditorId;
 
     internal static bool IsCompletionAction(string? action) =>
         action == CompleteAction ||

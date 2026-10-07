@@ -11,6 +11,7 @@ public partial class ReminderEditorPage : ContentPage
     // ОСНОВНЫЕ ТИПЫ
     // ============================================================
 
+
     private enum DisplayBoundary
     {
         Start,
@@ -47,9 +48,11 @@ public partial class ReminderEditorPage : ContentPage
     // ============================================================
 
     private readonly ReminderItem? reminder;
+    private int reminderId;
 
     private DateTime? displayStart;
     private DateTime? displayEnd;
+    private int group = 3;
 
     private readonly ObservableCollection<NotificationTimeItem>
         notificationTimes;
@@ -183,6 +186,9 @@ public partial class ReminderEditorPage : ContentPage
         displayEnd =
             reminder?.DisplayEnd;
 
+        group =
+    reminder?.Group ?? 3;
+
         autoCompleteOnDisplayEnd =
             reminder?.AutoCompleteOnDisplayEnd ?? false;
 
@@ -229,12 +235,112 @@ public partial class ReminderEditorPage : ContentPage
 
         UpdateAutoCompleteControls();
 
+        UpdateGroupButtonVisual();
+
         UpdateTimerFromCurrentTarget();
 
 
         isInitializing = false;
 
         countdownTimer.Start();
+    }
+
+    private void UpdateGroupButtonVisual()
+    {
+        switch (group)
+        {
+            case 1:
+                GroupButton.BackgroundColor =
+                    Color.FromArgb("#FF6B6B");
+
+                GroupButton.BorderWidth = 0;
+                GroupButton.BorderColor = Colors.Transparent;
+                break;
+
+            case 2:
+                GroupButton.BackgroundColor =
+                    Color.FromArgb("#FFD93D");
+
+                GroupButton.BorderWidth = 0;
+                GroupButton.BorderColor = Colors.Transparent;
+                break;
+
+            case 3:
+                GroupButton.BackgroundColor =
+                    Colors.Transparent;
+
+                GroupButton.BorderColor =
+                    Application.Current?.RequestedTheme == AppTheme.Dark
+                        ? Color.FromArgb("#B0B0B0")
+                        : Color.FromArgb("#808080");
+
+                GroupButton.BorderWidth = 1;
+                break;
+
+            case 4:
+                GroupButton.BackgroundColor =
+                    Color.FromArgb("#4D96FF");
+
+                GroupButton.BorderWidth = 0;
+                GroupButton.BorderColor = Colors.Transparent;
+                break;
+
+            default:
+                group = 3;
+
+                GroupButton.BackgroundColor =
+                    Colors.Transparent;
+
+                GroupButton.BorderColor =
+                    Color.FromArgb("#808080");
+
+                GroupButton.BorderWidth = 1;
+                break;
+        }
+    }
+
+    private void OnGroupSelectionOverlayTapped(
+    object? sender,
+    TappedEventArgs e)
+    {
+        GroupSelectionOverlay.IsVisible = false;
+    }
+
+    private void OnGroupButtonClicked(
+    object? sender,
+    EventArgs e)
+    {
+        GroupSelectionOverlay.IsVisible = true;
+    }
+
+    private void OnEditorGroupButtonClicked(
+    object? sender,
+    EventArgs e)
+    {
+        if (sender is not Button button)
+        {
+            return;
+        }
+
+        if (!int.TryParse(
+                button.CommandParameter?.ToString(),
+                out int selectedGroup))
+        {
+            return;
+        }
+
+        if (selectedGroup < 1 || selectedGroup > 4)
+        {
+            return;
+        }
+
+        group = selectedGroup;
+
+        UpdateGroupButtonVisual();
+
+        GroupSelectionOverlay.IsVisible = false;
+
+        RequestAutoSave();
     }
 
 
@@ -601,7 +707,7 @@ public partial class ReminderEditorPage : ContentPage
 
 
     private ReminderItem CreateReminderForSave(
-        string text)
+    string text)
     {
         return new ReminderItem
         {
@@ -616,6 +722,9 @@ public partial class ReminderEditorPage : ContentPage
 
             DisplayEnd =
                 displayEnd,
+
+            Group =
+                group,
 
             AutoCompleteOnDisplayEnd =
                 autoCompleteOnDisplayEnd,
@@ -1904,6 +2013,7 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
+
     private void UpdateDisplayPeriodLabel()
     {
         DisplayPeriodLabel.Text =
@@ -1970,36 +2080,47 @@ public partial class ReminderEditorPage : ContentPage
 
 
     private async Task SaveAndCloseAsync(
-        string text)
+    string text)
     {
         if (isClosing)
         {
             return;
         }
 
-        isClosing =
-            true;
-
         try
         {
             if (!string.IsNullOrWhiteSpace(text))
             {
+                ReminderItem editedReminder =
+                    CreateReminderForSave(text);
+
                 await NotifySaveRequestedAsync(
-                    CreateReminderForSave(text));
+                    editedReminder);
             }
 
-            await Navigation.PopModalAsync();
+            // Даём текущему UI-событию завершиться.
+            await Task.Yield();
+
+            isClosing = true;
+
+            await MainThread.InvokeOnMainThreadAsync(
+                async () =>
+                {
+                    await Navigation.PopModalAsync();
+                });
         }
-        catch (Exception)
-        {
-            isClosing =
-                false;
+        catch (Exception ex)
+        {//постоянно вызывыается исключяение
+            isClosing = false;
+
+            System.Diagnostics.Debug.WriteLine(
+                $"Ошибка сохранения ReminderEditorPage: {ex}");
 
             await DisplayAlert(
                 "Ошибка",
-                "Не удалось сохранить напоминание.",
+                $"Не удалось сохранить напоминание.\n\n{ex.Message}",
                 "OK");
-        }
+        }//постоянно вызывыается исключяение
     }
 
 

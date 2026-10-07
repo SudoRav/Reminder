@@ -12,14 +12,11 @@ public partial class MainPage : ContentPage
     private readonly ReminderStore store;
     private readonly IReminderNotificationService notificationService;
     private readonly SemaphoreSlim editorNavigationSemaphore = new(1, 1);
+
     private ReminderItem? groupSelectionReminder;
 
-    private const int LongPressDurationMilliseconds = 500;
-    private CancellationTokenSource? longPressCancellation;
-    private bool suppressNextReminderTap;
-
     private int? openEditorReminderId;
-    private readonly IDispatcherTimer autoCompleteTimer;
+    private CancellationTokenSource? groupSortCancellation;
     private bool isSortingReminders;
 
     public MainPage()
@@ -27,100 +24,113 @@ public partial class MainPage : ContentPage
         InitializeComponent();
 
         store = new ReminderStore();
-        notificationService = IPlatformApplication.Current?.Services.GetRequiredService<IReminderNotificationService>()
-            ?? throw new InvalidOperationException("Notification service is not registered.");
 
-        reminders = new ObservableCollection<ReminderItem>(OrderReminders(store.Load(), DateTime.Now));
+        notificationService =
+            IPlatformApplication.Current?.Services
+                .GetRequiredService<IReminderNotificationService>()
+            ?? throw new InvalidOperationException(
+                "Notification service is not registered.");
+
+        reminders = new ObservableCollection<ReminderItem>(
+            OrderReminders(store.Load(), DateTime.Now));
+
         SubscribeToReminderChanges();
-        completedReminders = new ObservableCollection<ReminderItem>(store.LoadCompleted());
-        RemindersCollectionView.ItemsSource = reminders;
-        SubscribeToNotificationCompletion();
 
-        autoCompleteTimer = Dispatcher.CreateTimer();
-        autoCompleteTimer.Interval = TimeSpan.FromSeconds(30);
-        autoCompleteTimer.Tick += (_, _) => CompleteExpiredAutoCompleteReminders();
-        autoCompleteTimer.Start();
+        completedReminders =
+            new ObservableCollection<ReminderItem>(
+                store.LoadCompleted());
+
+        RemindersCollectionView.ItemsSource = reminders;
+
+        SubscribeToNotificationCompletion();
     }
 
-    private void OnReminderPointerPressed(object? sender, PointerEventArgs e)
-    {
-        if (sender is not Border border ||
-            border.BindingContext is not ReminderItem reminder)
-        {
-            return;
-        }
 
-        CancelLongPress();
+    private void ScheduleGroupSort()
+    {
+        groupSortCancellation?.Cancel();
+        groupSortCancellation?.Dispose();
 
         var cancellation = new CancellationTokenSource();
-        longPressCancellation = cancellation;
+        groupSortCancellation = cancellation;
 
-        _ = DetectLongPressAsync(reminder, cancellation.Token);
+        _ = SortAfterGroupChangeAsync(cancellation);
     }
 
-    private void OnReminderPointerReleased(object? sender, PointerEventArgs e)
+    private void OnGroupSelectionOverlayTapped(
+    object? sender,
+    TappedEventArgs e)
     {
-        CancelLongPress();
+        GroupSelectionOverlay.IsVisible = false;
+        groupSelectionReminder = null;
     }
 
-    private void OnReminderPointerExited(object? sender, PointerEventArgs e)
-    {
-        CancelLongPress();
-    }
-
-    private async Task DetectLongPressAsync(
-        ReminderItem reminder,
-        CancellationToken cancellationToken)
+    private async Task SortAfterGroupChangeAsync(
+        CancellationTokenSource cancellation)
     {
         try
         {
             await Task.Delay(
-                LongPressDurationMilliseconds,
-                cancellationToken);
+                TimeSpan.FromSeconds(3),
+                cancellation.Token);
+
+            if (!cancellation.IsCancellationRequested)
+            {
+                await MainThread.InvokeOnMainThreadAsync(
+                    SortReminders);
+            }
         }
         catch (OperationCanceledException)
         {
-            return;
+            // Таймер был сброшен новым изменением группы.
         }
-
-        if (cancellationToken.IsCancellationRequested)
+        finally
         {
-            return;
-        }
-
-        await MainThread.InvokeOnMainThreadAsync(() =>
-        {
-            if (cancellationToken.IsCancellationRequested)
+            if (ReferenceEquals(
+                groupSortCancellation,
+                cancellation))
             {
-                return;
+                groupSortCancellation = null;
             }
 
-            groupSelectionReminder = reminder;
-
-            // После удержания следующий Tap этого же элемента
-            // не должен открыть редактор.
-            suppressNextReminderTap = true;
-
-            GroupSelectionOverlay.IsVisible = true;
-        });
+            cancellation.Dispose();
+        }
     }
 
-    private void CancelLongPress()
+    private void OnGroupSelectionButtonClicked(object? sender, EventArgs e)
     {
-        longPressCancellation?.Cancel();
-        longPressCancellation?.Dispose();
-        longPressCancellation = null;
+        if (sender is not Button button)
+        {
+            return;
+        }
+
+        if (button.CommandParameter is not ReminderItem reminder)
+        {
+            return;
+        }
+
+        groupSelectionReminder = reminder;
+        GroupSelectionOverlay.IsVisible = true;
     }
 
-    private void OnGroupButtonClicked(object? sender, EventArgs e)
+
+    private void OnGroupButtonClicked(
+    object? sender,
+    EventArgs e)
     {
         if (groupSelectionReminder is null)
         {
             return;
         }
 
-        if (sender is not Button button ||
-            !int.TryParse(button.CommandParameter?.ToString(), out int group))
+        if (sender is not Button button)
+        {
+            return;
+        }
+
+        if (!int.TryParse(
+                button.CommandParameter?.ToString(),
+                out int group))
         {
             return;
         }
@@ -132,17 +142,10 @@ public partial class MainPage : ContentPage
 
         groupSelectionReminder.Group = group;
 
-        // Сохраняем новое значение группы.
         SaveReminders();
 
         GroupSelectionOverlay.IsVisible = false;
         groupSelectionReminder = null;
-
-        // После выбора группы следующий обычный Tap
-        // уже должен работать как обычно.
-        suppressNextReminderTap = false;
-
-        CancelLongPress();
     }
 
     protected override async void OnAppearing()
@@ -158,11 +161,16 @@ public partial class MainPage : ContentPage
         {
             await ShowOrCancelNotificationAsync(reminder);
         }
+
+        await TryOpenPendingReminderEditorAsync();
     }
 
     protected override void OnDisappearing()
     {
-        CancelLongPress();
+        groupSortCancellation?.Cancel();
+
+        GroupSelectionOverlay.IsVisible = false;
+        groupSelectionReminder = null;
 
         base.OnDisappearing();
     }
@@ -170,15 +178,18 @@ public partial class MainPage : ContentPage
     private async void OnCreateClicked(object? sender, EventArgs e)
     {
         var editorPage = new ReminderEditorPage();
+
         ReminderItem? reminder = null;
+
         editorPage.SaveRequested += async editedReminder =>
         {
             if (reminder is null)
             {
                 reminder = new ReminderItem
                 {
-                    Id = GetNextReminderId(),
+                    Id = GetNextReminderId()
                 };
+
                 reminders.Add(reminder);
             }
             else
@@ -189,41 +200,39 @@ public partial class MainPage : ContentPage
             reminder.Text = editedReminder.Text;
             reminder.DisplayStart = editedReminder.DisplayStart;
             reminder.DisplayEnd = editedReminder.DisplayEnd;
-            reminder.AutoCompleteOnDisplayEnd = editedReminder.AutoCompleteOnDisplayEnd;
-            reminder.ShowInNotificationCenter = editedReminder.ShowInNotificationCenter;
-            reminder.NotificationTimes = editedReminder.NotificationTimes;
-            reminder.NotificationTimeSettings = editedReminder.NotificationTimeSettings;
+            reminder.Group = editedReminder.Group;
+            reminder.AutoCompleteOnDisplayEnd =
+                editedReminder.AutoCompleteOnDisplayEnd;
+            reminder.ShowInNotificationCenter =
+                editedReminder.ShowInNotificationCenter;
+            reminder.NotificationTimes =
+                editedReminder.NotificationTimes;
+            reminder.NotificationTimeSettings =
+                editedReminder.NotificationTimeSettings;
+
+            // Group намеренно здесь не изменяется.
+            // Для нового ReminderItem он остается равным 3.
             RefreshReminders();
             SaveReminders();
+
             await ShowOrCancelNotificationAsync(reminder);
         };
 
-        await Navigation.PushModalAsync(new NavigationPage(editorPage));
+        await Navigation.PushModalAsync(
+            new NavigationPage(editorPage));
     }
 
-    private async void OnCompletedClicked(object? sender, EventArgs e)
+    private async void OnCompletedClicked(
+        object? sender,
+        EventArgs e)
     {
-        await Navigation.PushModalAsync(new NavigationPage(new CompletedRemindersPage()));
+        await Navigation.PushModalAsync(
+            new NavigationPage(
+                new CompletedRemindersPage()));
     }
 
     private async void OnReminderTapped(object? sender, TappedEventArgs e)
     {
-        // Если открыто окно выбора группы,
-        // редактор открывать не нужно.
-        if (GroupSelectionOverlay.IsVisible)
-        {
-            return;
-        }
-
-        // Long press заканчивается обычным release,
-        // поэтому возможен дополнительный Tap.
-        // Не даём ему открыть редактор.
-        if (suppressNextReminderTap)
-        {
-            suppressNextReminderTap = false;
-            return;
-        }
-
         if (e.Parameter is not ReminderItem reminder)
         {
             return;
@@ -232,7 +241,9 @@ public partial class MainPage : ContentPage
         await OpenEditorAsync(reminder);
     }
 
-    private void OnCompleteReminderClicked(object? sender, EventArgs e)
+    private void OnCompleteReminderClicked(
+        object? sender,
+        EventArgs e)
     {
         if ((sender as Button)?.CommandParameter is ReminderItem reminder)
         {
@@ -243,6 +254,7 @@ public partial class MainPage : ContentPage
     private async Task OpenEditorAsync(ReminderItem reminder)
     {
         await editorNavigationSemaphore.WaitAsync();
+
         try
         {
             if (openEditorReminderId is not null)
@@ -258,26 +270,41 @@ public partial class MainPage : ContentPage
         }
 
         var editorPage = new ReminderEditorPage(reminder);
+
         editorPage.SaveRequested += async editedReminder =>
         {
             notificationService.Cancel(reminder.Id);
+
             reminder.Text = editedReminder.Text;
             reminder.DisplayStart = editedReminder.DisplayStart;
             reminder.DisplayEnd = editedReminder.DisplayEnd;
-            reminder.AutoCompleteOnDisplayEnd = editedReminder.AutoCompleteOnDisplayEnd;
-            reminder.ShowInNotificationCenter = editedReminder.ShowInNotificationCenter;
-            reminder.NotificationTimes = editedReminder.NotificationTimes;
-            reminder.NotificationTimeSettings = editedReminder.NotificationTimeSettings;
+            reminder.Group = editedReminder.Group;
+            reminder.AutoCompleteOnDisplayEnd =
+                editedReminder.AutoCompleteOnDisplayEnd;
+            reminder.ShowInNotificationCenter =
+                editedReminder.ShowInNotificationCenter;
+            reminder.NotificationTimes =
+                editedReminder.NotificationTimes;
+            reminder.NotificationTimeSettings =
+                editedReminder.NotificationTimeSettings;
+
+            // Group намеренно здесь не изменяется.
             RefreshReminders();
             SaveReminders();
+
             await ShowOrCancelNotificationAsync(reminder);
         };
-        editorPage.DeleteRequested += (_, _) => CompleteReminder(reminder);
-        editorPage.Disappearing += (_, _) => openEditorReminderId = null;
+
+        editorPage.DeleteRequested +=
+            (_, _) => CompleteReminder(reminder);
+
+        editorPage.Disappearing +=
+            (_, _) => openEditorReminderId = null;
 
         try
         {
-            await Navigation.PushModalAsync(new NavigationPage(editorPage));
+            await Navigation.PushModalAsync(
+                new NavigationPage(editorPage));
         }
         catch
         {
@@ -291,15 +318,22 @@ public partial class MainPage : ContentPage
         CompleteReminder(reminder.Id, saveReminders: true);
     }
 
-    private void CompleteReminder(int reminderId, bool saveReminders)
+    private void CompleteReminder(
+        int reminderId,
+        bool saveReminders)
     {
-        ReminderItem? reminder = reminders.FirstOrDefault(item => item.Id == reminderId);
+        ReminderItem? reminder =
+            reminders.FirstOrDefault(
+                item => item.Id == reminderId);
+
         if (reminder is not null)
         {
             reminders.Remove(reminder);
+
             reminder.CompletedAt = DateTime.Now;
             reminder.NotificationTimes.Clear();
             reminder.NotificationTimeSettings.Clear();
+
             completedReminders.Add(reminder);
         }
 
@@ -315,7 +349,7 @@ public partial class MainPage : ContentPage
     private void CompleteExpiredAutoCompleteReminders()
     {
         DateTime now = DateTime.Now;
-        SortReminders();
+
         List<int> expiredReminderIds = reminders
             .Where(reminder =>
                 reminder.AutoCompleteOnDisplayEnd &&
@@ -326,26 +360,50 @@ public partial class MainPage : ContentPage
 
         foreach (int reminderId in expiredReminderIds)
         {
-            CompleteReminder(reminderId, saveReminders: true);
+            CompleteReminder(
+                reminderId,
+                saveReminders: true);
         }
     }
 
-    private async Task ShowOrCancelNotificationAsync(ReminderItem reminder)
+    private async Task ShowOrCancelNotificationAsync(
+    ReminderItem reminder)
     {
-        notificationService.Cancel(reminder.Id);
-        await notificationService.ShowAsync(reminder);
+        notificationService.Cancel(
+            reminder.Id);
+
+        bool hasDisplayPeriod =
+            reminder.DisplayStart is not null ||
+            reminder.DisplayEnd is not null;
+
+        bool shouldShowNotification =
+            hasDisplayPeriod ||
+            reminder.ShowInNotificationCenter;
+
+        if (!shouldShowNotification)
+        {
+            return;
+        }
+
+        await notificationService.ShowAsync(
+            reminder);
     }
 
     private int GetNextReminderId()
     {
-        return reminders.Concat(completedReminders).Any()
-            ? reminders.Concat(completedReminders).Max(static reminder => reminder.Id) + 1
+        return reminders
+            .Concat(completedReminders)
+            .Any()
+            ? reminders
+                .Concat(completedReminders)
+                .Max(static reminder => reminder.Id) + 1
             : 1;
     }
 
     private void RefreshReminders()
     {
         SortReminders();
+
         RemindersCollectionView.ItemsSource = null;
         RemindersCollectionView.ItemsSource = reminders;
     }
@@ -353,10 +411,13 @@ public partial class MainPage : ContentPage
     private void ReloadReminders()
     {
         UnsubscribeFromReminderChanges();
+
         try
         {
             isSortingReminders = true;
+
             reminders.Clear();
+
             foreach (ReminderItem reminder in store.Load())
             {
                 reminders.Add(reminder);
@@ -371,54 +432,110 @@ public partial class MainPage : ContentPage
         SortReminders();
 
         completedReminders.Clear();
+
         foreach (ReminderItem reminder in store.LoadCompleted())
         {
             completedReminders.Add(reminder);
         }
     }
 
-    private void SubscribeToNotificationCompletion()
+    private async Task TryOpenPendingReminderEditorAsync()
     {
 #if ANDROID
-        AndroidReminderNotificationService.ReminderCompleted += reminderId =>
+        int? reminderId =
+            AndroidReminderNotificationService
+                .ConsumePendingReminderEditorRequest();
+
+        if (reminderId is not int id ||
+            id == 0)
         {
-            MainThread.BeginInvokeOnMainThread(() => CompleteReminder(reminderId, saveReminders: false));
-        };
-        AndroidReminderNotificationService.ReminderEditorRequested += reminderId =>
+            return;
+        }
+
+        ReloadReminders();
+
+        ReminderItem? reminder =
+            reminders.FirstOrDefault(
+                item => item.Id == id);
+
+        if (reminder is null)
         {
-            MainThread.BeginInvokeOnMainThread(async () =>
-            {
-                ReloadReminders();
-                ReminderItem? reminder = reminders.FirstOrDefault(item => item.Id == reminderId);
-                if (reminder is not null)
-                {
-                    await OpenEditorAsync(reminder);
-                }
-            });
-        };
-        AndroidReminderNotificationService.NotificationTimeTriggered += (reminderId, notificationTime) =>
-        {
-            MainThread.BeginInvokeOnMainThread(() => RemoveTriggeredNotificationTime(reminderId, notificationTime));
-        };
-        AndroidReminderNotificationService.NotificationTimeDeferred += _ =>
-        {
-            MainThread.BeginInvokeOnMainThread(ReloadReminders);
-        };
+            return;
+        }
+
+        await OpenEditorAsync(reminder);
 #endif
     }
 
-    private void RemoveTriggeredNotificationTime(int reminderId, DateTime notificationTime)
+    private void SubscribeToNotificationCompletion()
     {
-        ReminderItem? reminder = reminders.FirstOrDefault(item => item.Id == reminderId);
+#if ANDROID
+        AndroidReminderNotificationService.ReminderCompleted +=
+            reminderId =>
+            {
+                MainThread.BeginInvokeOnMainThread(
+                    () => CompleteReminder(
+                        reminderId,
+                        saveReminders: false));
+            };
+
+        AndroidReminderNotificationService.ReminderEditorRequested +=
+            reminderId =>
+            {
+                MainThread.BeginInvokeOnMainThread(
+                    async () =>
+                    {
+                        ReloadReminders();
+
+                        ReminderItem? reminder =
+                            reminders.FirstOrDefault(
+                                item => item.Id == reminderId);
+
+                        if (reminder is not null)
+                        {
+                            await OpenEditorAsync(reminder);
+                        }
+                    });
+            };
+
+        AndroidReminderNotificationService.NotificationTimeTriggered +=
+            (reminderId, notificationTime) =>
+            {
+                MainThread.BeginInvokeOnMainThread(
+                    () => RemoveTriggeredNotificationTime(
+                        reminderId,
+                        notificationTime));
+            };
+
+        AndroidReminderNotificationService.NotificationTimeDeferred +=
+            _ =>
+            {
+                MainThread.BeginInvokeOnMainThread(
+                    ReloadReminders);
+            };
+#endif
+    }
+
+    private void RemoveTriggeredNotificationTime(
+        int reminderId,
+        DateTime notificationTime)
+    {
+        ReminderItem? reminder =
+            reminders.FirstOrDefault(
+                item => item.Id == reminderId);
+
         if (reminder is null)
         {
             ReloadReminders();
             return;
         }
 
-        if (reminder.NotificationTimes.RemoveAll(time => time == notificationTime) > 0)
+        if (reminder.NotificationTimes.RemoveAll(
+                time => time == notificationTime) > 0)
         {
-            reminder.NotificationTimeSettings.RemoveAll(time => time.Time == notificationTime);
+            reminder.NotificationTimeSettings.RemoveAll(
+                time => time.Time == notificationTime);
+
             RefreshReminders();
         }
     }
@@ -443,7 +560,10 @@ public partial class MainPage : ContentPage
 
     private void SortReminders()
     {
-        List<ReminderItem> sortedReminders = OrderReminders(reminders, DateTime.Now).ToList();
+        List<ReminderItem> sortedReminders =
+            OrderReminders(
+                reminders,
+                DateTime.Now).ToList();
 
         if (reminders.SequenceEqual(sortedReminders))
         {
@@ -451,14 +571,23 @@ public partial class MainPage : ContentPage
         }
 
         isSortingReminders = true;
+
         try
         {
-            for (int targetIndex = 0; targetIndex < sortedReminders.Count; targetIndex++)
+            for (
+                int targetIndex = 0;
+                targetIndex < sortedReminders.Count;
+                targetIndex++)
             {
-                int currentIndex = reminders.IndexOf(sortedReminders[targetIndex]);
+                int currentIndex =
+                    reminders.IndexOf(
+                        sortedReminders[targetIndex]);
+
                 if (currentIndex != targetIndex)
                 {
-                    reminders.Move(currentIndex, targetIndex);
+                    reminders.Move(
+                        currentIndex,
+                        targetIndex);
                 }
             }
         }
@@ -468,53 +597,55 @@ public partial class MainPage : ContentPage
         }
     }
 
-    //private static IOrderedEnumerable<ReminderItem> OrderReminders(
-    //IEnumerable<ReminderItem> source,
-    //DateTime now)
-    //{
-    //    if (true)
-    //        return source
-    //            .OrderBy(GetReminderSortGroup)
-    //            .ThenBy(GetReminderSortTime)
-    //            .ThenBy(static reminder => reminder.Id);
-    //    else
-    //        return source
-    //            .OrderBy(reminder => GetRelevantDisplayTime(reminder, now))
-    //            .ThenBy(reminder => GetReminderPriority(reminder, now))
-    //            .ThenBy(static reminder => reminder.Id);
-    //}
-
     private static IEnumerable<ReminderItem> OrderReminders(
-        IEnumerable<ReminderItem> source,
-        DateTime now)
+    IEnumerable<ReminderItem> source,
+    DateTime now)
     {
         var list = source.ToList();
 
-        var withStart = list
-            .Where(r => r.DisplayStart is not null)
-            .OrderBy(r => r.DisplayStart!.Value)
-            .ThenBy(r => r.Id);
+        return list
+            // Первичный этап: группы 1 -> 2 -> 3 -> 4
+            .GroupBy(r => r.Group)
+            .OrderBy(group => group.Key)
+            // Вторичный этап: существующая сортировка внутри каждой группы
+            .SelectMany(group =>
+            {
+                var withStart = group
+                    .Where(r => r.DisplayStart is not null)
+                    .OrderBy(r => r.DisplayStart!.Value)
+                    .ThenBy(r => r.Id);
 
-        var withEndOnly = list
-            .Where(r => r.DisplayStart is null && r.DisplayEnd is not null)
-            .OrderBy(r => r.DisplayEnd!.Value)
-            .ThenBy(r => r.Id);
+                var withEndOnly = group
+                    .Where(r =>
+                        r.DisplayStart is null &&
+                        r.DisplayEnd is not null)
+                    .OrderBy(r => r.DisplayEnd!.Value)
+                    .ThenBy(r => r.Id);
 
-        var withoutDates = list
-            .Where(r => r.DisplayStart is null && r.DisplayEnd is null)
-            .OrderByDescending(r => r.Id);
+                var withoutDates = group
+                    .Where(r =>
+                        r.DisplayStart is null &&
+                        r.DisplayEnd is null)
+                    .OrderByDescending(r => r.Id);
 
-        return withStart.Concat(withEndOnly).Concat(withoutDates);
+                return withStart
+                    .Concat(withEndOnly)
+                    .Concat(withoutDates);
+            });
     }
 
-    private static int GetReminderPriority(ReminderItem reminder, DateTime now)
+    private static int GetReminderPriority(
+        ReminderItem reminder,
+        DateTime now)
     {
-        if (reminder.DisplayStart is DateTime displayStart && displayStart >= now)
+        if (reminder.DisplayStart is DateTime displayStart &&
+            displayStart >= now)
         {
             return 0;
         }
 
-        if (reminder.DisplayEnd is DateTime displayEnd && displayEnd >= now)
+        if (reminder.DisplayEnd is DateTime displayEnd &&
+            displayEnd >= now)
         {
             return 1;
         }
@@ -522,7 +653,9 @@ public partial class MainPage : ContentPage
         return 2;
     }
 
-    private static DateTime GetRelevantDisplayTime(ReminderItem reminder, DateTime now)
+    private static DateTime GetRelevantDisplayTime(
+        ReminderItem reminder,
+        DateTime now)
     {
         return GetReminderPriority(reminder, now) switch
         {
@@ -532,7 +665,8 @@ public partial class MainPage : ContentPage
         };
     }
 
-    private static int GetReminderSortGroup(ReminderItem reminder)
+    private static int GetReminderSortGroup(
+        ReminderItem reminder)
     {
         if (reminder.DisplayStart is not null)
         {
@@ -547,7 +681,8 @@ public partial class MainPage : ContentPage
         return 2;
     }
 
-    private static DateTime GetReminderSortTime(ReminderItem reminder)
+    private static DateTime GetReminderSortTime(
+        ReminderItem reminder)
     {
         return GetReminderSortGroup(reminder) switch
         {
@@ -559,29 +694,38 @@ public partial class MainPage : ContentPage
 
     private void SubscribeToReminderChanges()
     {
-        reminders.CollectionChanged += OnRemindersCollectionChanged;
+        reminders.CollectionChanged +=
+            OnRemindersCollectionChanged;
+
         foreach (ReminderItem reminder in reminders)
         {
-            reminder.PropertyChanged += OnReminderPropertyChanged;
+            reminder.PropertyChanged +=
+                OnReminderPropertyChanged;
         }
     }
 
     private void UnsubscribeFromReminderChanges()
     {
-        reminders.CollectionChanged -= OnRemindersCollectionChanged;
+        reminders.CollectionChanged -=
+            OnRemindersCollectionChanged;
+
         foreach (ReminderItem reminder in reminders)
         {
-            reminder.PropertyChanged -= OnReminderPropertyChanged;
+            reminder.PropertyChanged -=
+                OnReminderPropertyChanged;
         }
     }
 
-    private void OnRemindersCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void OnRemindersCollectionChanged(
+        object? sender,
+        NotifyCollectionChangedEventArgs e)
     {
         if (e.OldItems is not null)
         {
             foreach (ReminderItem reminder in e.OldItems)
             {
-                reminder.PropertyChanged -= OnReminderPropertyChanged;
+                reminder.PropertyChanged -=
+                    OnReminderPropertyChanged;
             }
         }
 
@@ -589,7 +733,8 @@ public partial class MainPage : ContentPage
         {
             foreach (ReminderItem reminder in e.NewItems)
             {
-                reminder.PropertyChanged += OnReminderPropertyChanged;
+                reminder.PropertyChanged +=
+                    OnReminderPropertyChanged;
             }
         }
 
@@ -599,9 +744,19 @@ public partial class MainPage : ContentPage
         }
     }
 
-    private void OnReminderPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnReminderPropertyChanged(
+        object? sender,
+        PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(ReminderItem.DisplayStart) or nameof(ReminderItem.DisplayEnd))
+        if (e.PropertyName == nameof(ReminderItem.Group))
+        {
+            ScheduleGroupSort();
+            return;
+        }
+
+        if (e.PropertyName is
+            nameof(ReminderItem.DisplayStart) or
+            nameof(ReminderItem.DisplayEnd))
         {
             SortReminders();
         }
