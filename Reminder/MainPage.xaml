@@ -58,12 +58,6 @@
                             <TapGestureRecognizer Tapped="OnReminderTapped"
                                                    CommandParameter="{Binding .}" />
 
-                            <LongPressGestureRecognizer
-                                MinimumPressDuration="500"
-                                AllowableMovement="10"
-                                LongPressed="OnReminderLongPressed"
-                                CommandParameter="{Binding .}" />
-
                         </Border.GestureRecognizers>
 
                         <VerticalStackLayout Spacing="10">

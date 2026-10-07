@@ -2,6 +2,8 @@ using Reminder;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
+namespace Reminder;
+
 public sealed class ReminderItem : INotifyPropertyChanged
 {
     private DateTime? displayStart;
