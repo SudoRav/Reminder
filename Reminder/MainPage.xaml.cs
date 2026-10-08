@@ -366,12 +366,8 @@ public partial class MainPage : ContentPage
         }
     }
 
-    private async Task ShowOrCancelNotificationAsync(
-    ReminderItem reminder)
+    private async Task ShowOrCancelNotificationAsync(ReminderItem reminder)
     {
-        notificationService.Cancel(
-            reminder.Id);
-
         bool hasDisplayPeriod =
             reminder.DisplayStart is not null ||
             reminder.DisplayEnd is not null;
@@ -382,11 +378,11 @@ public partial class MainPage : ContentPage
 
         if (!shouldShowNotification)
         {
+            notificationService.Cancel(reminder.Id);
             return;
         }
 
-        await notificationService.ShowAsync(
-            reminder);
+        await notificationService.ShowAsync(reminder);
     }
 
     private int GetNextReminderId()

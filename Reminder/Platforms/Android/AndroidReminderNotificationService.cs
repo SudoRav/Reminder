@@ -17,7 +17,9 @@ namespace Reminder;
 
 public sealed class AndroidReminderNotificationService : IReminderNotificationService
 {
-    private const string ChannelId = "persistent_reminders";
+private const string ChannelId = "persistent_reminders";          // теперь только для Push (громкий)
+
+private const string PersistentChannelId = "persistent_reminders_silent"; // липкие, тихий
 
     internal const string OverlayForegroundChannelId =
         "reminder_overlay_foreground";
@@ -290,8 +292,8 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     // ============================================================
 
     private static void ShowPersistentNotification(
-        Context context,
-        ReminderItem reminder)
+    Context context,
+    ReminderItem reminder)
     {
         DateTime now = DateTime.Now;
 
@@ -334,24 +336,16 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         Notification notification =
             new NotificationCompat.Builder(
                 context,
-                ChannelId)
+                PersistentChannelId)              // тихий канал
 
             .SetSmallIcon(
                 Resource.Drawable.notification_icon)
-
-            //.SetContentTitle(
-            //    ReminderDisplayFormatter.GetDisplayText(
-            //        reminder.DisplayStart,
-            //        reminder.DisplayEnd))
-
-            //.SetContentText(
-            //    reminder.Text)
 
             .SetContentTitle(
                 reminder.Text)
 
             .SetContentText(
-                    ReminderDisplayFormatter.GetDisplayText(
+                ReminderDisplayFormatter.GetDisplayText(
                     reminder.DisplayStart,
                     reminder.DisplayEnd))
 
@@ -369,8 +363,10 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
             .SetOngoing(true)
             .SetAutoCancel(false)
+            .SetSilent(true)
+            .SetOnlyAlertOnce(true)
             .SetPriority(
-                NotificationCompat.PriorityDefault)
+                NotificationCompat.PriorityLow)
 
             .Build();
 
