@@ -47,6 +47,7 @@ public partial class ReminderEditorPage : ContentPage
     // ОСНОВНЫЕ ПОЛЯ
     // ============================================================
 
+    private const int ReminderTextMaxLength = 1024;
     private readonly ReminderItem? reminder;
     private int reminderId;
 
@@ -180,6 +181,9 @@ public partial class ReminderEditorPage : ContentPage
         ReminderTextEditor.Text =
             reminder?.Text ?? string.Empty;
 
+        UpdateReminderCharacterLimit(
+    ReminderTextEditor.Text?.Length ?? 0);
+
         displayStart =
             reminder?.DisplayStart;
 
@@ -243,6 +247,65 @@ public partial class ReminderEditorPage : ContentPage
         isInitializing = false;
 
         countdownTimer.Start();
+    }
+
+    private void OnReminderChanged(
+    object? sender,
+    TextChangedEventArgs e)
+    {
+        if (sender is not Editor editor)
+        {
+            return;
+        }
+
+        string text =
+            editor.Text ?? string.Empty;
+
+        // ========================================================
+        // ОГРАНИЧЕНИЕ МАКСИМАЛЬНОЙ ДЛИНЫ
+        // ========================================================
+
+        if (text.Length > ReminderTextMaxLength)
+        {
+            // Обрезаем и возвращаем в редактор.
+            string trimmed =
+                text.Substring(0, ReminderTextMaxLength);
+
+            // Чтобы не зациклиться, проверяем реальное изменение.
+            if (editor.Text != trimmed)
+            {
+                editor.Text = trimmed;
+
+                // После установки Text событие TextChanged
+                // вызовется повторно, и там мы уже обновим счётчик.
+                return;
+            }
+        }
+
+        // ========================================================
+        // СЧЁТЧИК СИМВОЛОВ
+        // ========================================================
+
+        UpdateReminderCharacterLimit(text.Length);
+
+        RequestAutoSave();
+    }
+
+    private void UpdateReminderCharacterLimit(int count)
+    {
+        // На всякий случай подстрахуемся от выхода за границы.
+        if (count < 0)
+        {
+            count = 0;
+        }
+
+        if (count > ReminderTextMaxLength)
+        {
+            count = ReminderTextMaxLength;
+        }
+
+        ReminderCharacterLimit.Text =
+            $"{count} / {ReminderTextMaxLength}";
     }
 
     private void UpdateGroupButtonVisual()
@@ -685,13 +748,6 @@ public partial class ReminderEditorPage : ContentPage
     // ============================================================
     // АВТОСОХРАНЕНИЕ
     // ============================================================
-
-    private void OnReminderChanged(
-        object? sender,
-        TextChangedEventArgs e)
-    {
-        RequestAutoSave();
-    }
 
 
     private Task NotifySaveRequestedAsync(
@@ -3236,17 +3292,6 @@ EventArgs e)
         hoursSnapCancellation?.Cancel();
         minutesSnapCancellation?.Cancel();
 
-
-        // --------------------------------------------------------
-        // Восстанавливаем исходные значения колёс.
-        //
-        // timerDays / timerHours / timerMinutes —
-        // это последнее ПОДТВЕРЖДЁННОЕ значение.
-        //
-        // pendingTimer* — временные значения, изменяемые
-        // пользователем во время открытого окна.
-        // --------------------------------------------------------
-
         pendingTimerDays =
             timerDays;
 
@@ -3256,11 +3301,6 @@ EventArgs e)
         pendingTimerMinutes =
             timerMinutes;
 
-
-        // --------------------------------------------------------
-        // Возвращаем визуальное положение колёс
-        // к подтверждённому значению.
-        // --------------------------------------------------------
 
         isTimerWheelProgrammaticScroll =
             true;

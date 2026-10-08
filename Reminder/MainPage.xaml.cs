@@ -738,10 +738,10 @@ public partial class MainPage : ContentPage
             }
         }
 
-        if (!isSortingReminders)
-        {
-            SortReminders();
-        }
+        //if (!isSortingReminders)
+        //{
+        //    Dispatcher.Dispatch(SortReminders);
+        //}
     }
 
     private void OnReminderPropertyChanged(

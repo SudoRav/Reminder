@@ -65,13 +65,25 @@
                 <!-- ТЕКСТ НАПОМИНАНИЯ                                   -->
                 <!-- ================================================== -->
 
-                <Editor x:Name="ReminderTextEditor"
-                        MinimumHeightRequest="280"
-                        AutoSize="TextChanges"
-                        FontSize="18"
-                        Placeholder="Введите текст напоминания"
-                        SemanticProperties.Hint="Введите текст напоминания"
-                        TextChanged="OnReminderChanged" />
+
+                <Grid MinimumHeightRequest="280">
+
+                    <Editor x:Name="ReminderTextEditor"
+            AutoSize="TextChanges"
+            FontSize="18"
+            Placeholder="Введите текст напоминания"
+            SemanticProperties.Hint="Введите текст напоминания"
+            TextChanged="OnReminderChanged" />
+
+                    <Label x:Name="ReminderCharacterLimit"
+       Text="0 / 1024"
+       HorizontalOptions="End"
+       VerticalOptions="End"
+       Margin="0,0,12,12"
+       BackgroundColor="Transparent"
+       Padding="4,2"
+       ZIndex="10" />
+                </Grid>
 
 
                 <!-- ================================================== -->
