@@ -1937,19 +1937,10 @@ public sealed class CompleteReminderReceiver
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-[Service(Enabled = true, Exported = false)]
+[Service(
+    Enabled = true,
+    Exported = false,
+    ForegroundServiceType = Android.Content.PM.ForegroundService.TypeSpecialUse)]
 public sealed class ReminderOverlayService : Service
 {
     private static ReminderOverlayService? Current;
@@ -2005,15 +1996,25 @@ public sealed class ReminderOverlayService : Service
 
     public override IBinder? OnBind(Intent? intent) => null;
 
+
     public override StartCommandResult OnStartCommand(
         Intent? intent,
         StartCommandFlags flags,
         int startId)
     {
-        //при первом запуке в этой функции исключение
-        StartForeground(
-            AndroidReminderNotificationService.OverlayForegroundNotificationIdOffset,
-            BuildForegroundNotification());
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
+        {
+            StartForeground(
+                AndroidReminderNotificationService.OverlayForegroundNotificationIdOffset,
+                BuildForegroundNotification(),
+                Android.Content.PM.ForegroundService.TypeSpecialUse);
+        }
+        else
+        {
+            StartForeground(
+                AndroidReminderNotificationService.OverlayForegroundNotificationIdOffset,
+                BuildForegroundNotification());
+        }
 
         reminderId =
             intent?.GetIntExtra(

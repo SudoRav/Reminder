@@ -30,6 +30,10 @@
                     </Border>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
+            <CollectionView.Footer>
+                <BoxView HeightRequest="250"
+                         BackgroundColor="Transparent" />
+            </CollectionView.Footer>
         </CollectionView>
 
         <Button Grid.Row="1"
