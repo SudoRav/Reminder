@@ -123,6 +123,38 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
         }
     }
 
+    private static void EnsurePersistentChannel(Context context)
+    {
+        if (Build.VERSION.SdkInt < BuildVersionCodes.O)
+        {
+            return;
+        }
+
+        NotificationManager manager =
+            (NotificationManager)context.GetSystemService(
+                Context.NotificationService)!;
+
+        if (manager.GetNotificationChannel(PersistentChannelId) is not null)
+        {
+            return;
+        }
+
+        NotificationChannel channel =
+            new(
+                PersistentChannelId,
+                "Постоянные напоминания",
+                NotificationImportance.Low)
+            {
+                Description = "Липкие уведомления без звука и вибрации"
+            };
+
+        channel.EnableVibration(false);
+        channel.SetSound(null, null);
+        channel.SetShowBadge(false);
+
+        manager.CreateNotificationChannel(channel);
+    }
+
     private static readonly object reminderEditorRequestLock = new();
 
     private static int? pendingReminderEditorId;
@@ -298,16 +330,13 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
         DateTime now = DateTime.Now;
 
         if (!reminder.ShowInNotificationCenter ||
-            !ReminderDisplayFormatter.ShouldDisplayNow(
-                reminder,
-                now))
+        !ReminderDisplayFormatter.ShouldDisplayNow(reminder, now))
         {
-            CancelPersistentNotification(
-                context,
-                reminder.Id);
-
+            CancelPersistentNotification(context, reminder.Id);
             return;
         }
+
+        EnsurePersistentChannel(context);
 
         PendingIntentFlags flags =
             PendingIntentFlags.UpdateCurrent;
@@ -1981,6 +2010,7 @@ public sealed class ReminderOverlayService : Service
         StartCommandFlags flags,
         int startId)
     {
+        //при первом запуке в этой функции исключение
         StartForeground(
             AndroidReminderNotificationService.OverlayForegroundNotificationIdOffset,
             BuildForegroundNotification());
