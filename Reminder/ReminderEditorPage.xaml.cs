@@ -966,7 +966,7 @@ public partial class ReminderEditorPage : ContentPage
 
             await NotificationAmountWheel.ScrollToAsync(
                 0,
-                (pendingNotificationAmount - 1) *
+                pendingNotificationAmount *
                     NotificationWheelItemHeight,
                 false);
 
@@ -1467,22 +1467,48 @@ public partial class ReminderEditorPage : ContentPage
     // КОЛЕСО ЧИСЛА 1..99
     // ============================================================
 
+    //private void OnNotificationAmountWheelScrolled(
+    //    object? sender,
+    //    ScrolledEventArgs e)
+    //{
+    //    pendingNotificationAmount =
+    //        GetNotificationWheelIndex(
+    //            e.ScrollY,
+    //            99) + 1;
+
+
+    //    notificationAmount =
+    //        pendingNotificationAmount;
+
+
+    //    UpdateNotificationWheelVisuals();
+
+
+    //    if (!isNotificationWheelProgrammaticScroll)
+    //    {
+    //        notificationAmountSnapCancellation?.Cancel();
+
+    //        notificationAmountSnapCancellation =
+    //            new CancellationTokenSource();
+
+    //        _ = SnapNotificationAmountAsync(
+    //            notificationAmountSnapCancellation.Token);
+    //    }
+    //}
+
     private void OnNotificationAmountWheelScrolled(
-        object? sender,
-        ScrolledEventArgs e)
+    object? sender,
+    ScrolledEventArgs e)
     {
         pendingNotificationAmount =
             GetNotificationWheelIndex(
                 e.ScrollY,
-                99) + 1;
-
+                100);
 
         notificationAmount =
             pendingNotificationAmount;
 
-
         UpdateNotificationWheelVisuals();
-
 
         if (!isNotificationWheelProgrammaticScroll)
         {
@@ -1513,7 +1539,7 @@ public partial class ReminderEditorPage : ContentPage
 
             await SnapNotificationWheelAsync(
                 NotificationAmountWheel,
-                pendingNotificationAmount - 1,
+                pendingNotificationAmount,
                 token);
         }
         catch (TaskCanceledException)
@@ -1646,7 +1672,7 @@ public partial class ReminderEditorPage : ContentPage
 
         UpdateNotificationWheelVisuals(
             NotificationAmountWheelLayout,
-            pendingNotificationAmount - 1);
+            pendingNotificationAmount);
 
 
         UpdateNotificationWheelVisuals(
@@ -1758,8 +1784,8 @@ public partial class ReminderEditorPage : ContentPage
 
         CreateNotificationWheel(
             NotificationAmountWheelLayout,
-            Enumerable.Range(1, 99)
-                .Select(x => x.ToString())
+            Enumerable.Range(0, 100)
+                .Select(x => x.ToString("00"))
                 .ToArray());
 
         CreateNotificationWheel(
@@ -1772,6 +1798,7 @@ public partial class ReminderEditorPage : ContentPage
             });
 
         pendingNotificationDirectionIndex = 0;
+        notificationAmount = 1;
         pendingNotificationAmount = 1;
         pendingNotificationUnitIndex = 1;
 
@@ -1881,24 +1908,40 @@ public partial class ReminderEditorPage : ContentPage
     // ============================================================
 
     private void AddNotificationTime(
-        DateTime notificationTime)
+        DateTime notificationTime,
+        NotificationTimeItem? source = null)
     {
-        if (!notificationTimes.Any(
+        if (notificationTimes.Any(
                 x => x.Time == notificationTime))
         {
-            NotificationTimeItem item =
-                new(notificationTime);
-
-            item.PropertyChanged +=
-                OnNotificationTimeItemChanged;
-
-            notificationTimes.Add(
-                item);
-
-            SortNotifications();
-
-            RequestAutoSave();
+            return;
         }
+
+        NotificationTimeItem item;
+
+        if (source is not null)
+        {
+            // Копируем все настройки исходного оповещения.
+            NotificationTimeSettings settings = source.ToSettings();
+
+            settings.Time = notificationTime;
+
+            item = new NotificationTimeItem(settings);
+        }
+        else
+        {
+            // Создаём обычное оповещение с настройками по умолчанию.
+            item = new NotificationTimeItem(notificationTime);
+        }
+
+        item.PropertyChanged +=
+            OnNotificationTimeItemChanged;
+
+        notificationTimes.Add(item);
+
+        SortNotifications();
+
+        RequestAutoSave();
     }
 
 
@@ -1923,16 +1966,15 @@ public partial class ReminderEditorPage : ContentPage
     //проверить работоспособность
 
     private void OnDuplicateNotificationClicked(
-    object? sender,
-    EventArgs e)
+        object? sender,
+        EventArgs e)
     {
         if (sender is Button button &&
-            button.CommandParameter
-                is NotificationTimeItem item)
+            button.CommandParameter is NotificationTimeItem item)
         {
-            AddNotificationTime(item.Time.AddHours(1));
-
-            RequestAutoSave();
+            AddNotificationTime(
+                item.Time.AddHours(1),
+                item);
         }
     }
 

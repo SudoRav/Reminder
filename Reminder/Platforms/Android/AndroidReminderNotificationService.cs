@@ -370,8 +370,8 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
             .SetSmallIcon(
                 Resource.Drawable.notification_icon)
 
-            .SetContentTitle(
-                reminder.Text)
+.SetContentTitle(
+    $"{GetGroupSymbol(reminder.Group)}{reminder.Text}")
 
             .SetContentText(
                 ReminderDisplayFormatter.GetDisplayText(
@@ -404,6 +404,39 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
             reminder.Id,
             notification);
     }
+
+    private static int GetPersistentNotificationId(ReminderItem reminder)
+    {
+        // Приоритет групп в Notification Center:
+        // 🟥 группа 1 — первые
+        // 🟨 группа 2 — вторые
+        // без символа, группа 3 — третьи
+        // 🟦 группа 4 — четвёртые
+
+        const int groupStride = 1_000_000;
+
+        int groupOrder = reminder.Group switch
+        {
+            1 => 0,
+            2 => 1,
+            3 => 2,
+            4 => 3,
+            _ => 2
+        };
+
+        return groupOrder * groupStride + reminder.Id;
+    }
+
+    private static string GetGroupSymbol(int group)
+{
+    return group switch
+    {
+        1 => "🟥 ",
+        2 => "🟨 ",
+        4 => "🟦 ",
+        _ => string.Empty
+    };
+}
 
     private static void NotifyIfEnabled(
         Context context,
@@ -1545,6 +1578,13 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
             return;
         }
 
+        // Обычное одноразовое уведомление.
+        // Не используем ID постоянного уведомления.
+        int notificationId =
+            PermissionNotificationIdOffset +
+            100_000 +
+            reminder.Id;
+
         PendingIntentFlags flags =
             PendingIntentFlags.UpdateCurrent;
 
@@ -1557,36 +1597,31 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
             PendingIntent.GetActivity(
                 context,
                 reminder.Id,
-                CreateOpenEditorIntent(
-                    reminder.Id),
+                CreateOpenEditorIntent(reminder.Id),
                 flags);
 
         Notification notification =
             new NotificationCompat.Builder(
                 context,
                 ChannelId)
-
             .SetSmallIcon(
                 Resource.Drawable.notification_icon)
-
             .SetContentTitle(
                 reminder.Text)
-
             .SetContentText(
                 ReminderDisplayFormatter.GetDisplayText(
                     reminder.DisplayStart,
                     reminder.DisplayEnd))
-
             .SetStyle(
                 new NotificationCompat.BigTextStyle()
                     .BigText(reminder.Text))
-
             .SetContentIntent(
                 pendingIntent)
 
-            // Push — самостоятельное одноразовое уведомление.
-            // Кнопки "Завершить" здесь НЕТ.
+            // Не закрепляем уведомление.
             .SetOngoing(false)
+
+            // Убираем уведомление после нажатия.
             .SetAutoCancel(true)
 
             .SetPriority(
@@ -1599,17 +1634,6 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
 
         if (manager.AreNotificationsEnabled())
         {
-            /*
-             * Push — одноразовое уведомление.
-             *
-             * Используется отдельный ID,
-             * чтобы Push не заменял persistent notification.
-             */
-            int notificationId =
-                PermissionNotificationIdOffset +
-                100_000 +
-                reminder.Id;
-
             manager.Notify(
                 notificationId,
                 notification);
