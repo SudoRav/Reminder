@@ -118,7 +118,8 @@ public partial class ReminderEditorPage : ContentPage
     // 1 = За
     private int notificationDirectionIndex;
 
-    // Значение 1..99.
+    // Отображаемое значение 0..99.
+    // По умолчанию — 1 (показывается как "01").
     private int notificationAmount = 1;
 
     // 0 = Мин
@@ -451,7 +452,8 @@ public partial class ReminderEditorPage : ContentPage
         TimeSpan initialTime)
     {
         NotificationTimerButton.IsVisible =
-    editingNotification is not null;
+            editingNotification is not null;
+
         isUpdatingPickers =
             true;
 
@@ -862,6 +864,7 @@ public partial class ReminderEditorPage : ContentPage
         notificationDirectionIndex =
             0; // Через
 
+        // По умолчанию показываем "01".
         notificationAmount =
             1;
 
@@ -904,9 +907,13 @@ public partial class ReminderEditorPage : ContentPage
                 false);
 
 
+            // pendingNotificationAmount хранит именно
+            // отображаемое значение (0..99),
+            // и оно же является индексом в колесе,
+            // т.к. элементы идут 00, 01, 02, ...
             await NotificationAmountWheel.ScrollToAsync(
                 0,
-                (pendingNotificationAmount - 1) *
+                pendingNotificationAmount *
                     NotificationWheelItemHeight,
                 false);
 
@@ -1034,6 +1041,8 @@ public partial class ReminderEditorPage : ContentPage
 
     private TimeSpan GetNotificationOffset()
     {
+        // notificationAmount — это отображаемое число (0..99),
+        // а не индекс в массиве.
         return notificationUnitIndex switch
         {
             // 0 = минуты
@@ -1404,17 +1413,19 @@ public partial class ReminderEditorPage : ContentPage
 
 
     // ============================================================
-    // КОЛЕСО ЧИСЛА 1..99
+    // КОЛЕСО ЧИСЛА 00..99
     // ============================================================
 
     private void OnNotificationAmountWheelScrolled(
         object? sender,
         ScrolledEventArgs e)
     {
+        // Индекс в колесе совпадает с отображаемым значением,
+        // т.к. элементы идут 00, 01, 02, ... 99.
         pendingNotificationAmount =
             GetNotificationWheelIndex(
                 e.ScrollY,
-                99) + 1;
+                100);
 
 
         notificationAmount =
@@ -1453,7 +1464,7 @@ public partial class ReminderEditorPage : ContentPage
 
             await SnapNotificationWheelAsync(
                 NotificationAmountWheel,
-                pendingNotificationAmount - 1,
+                pendingNotificationAmount,
                 token);
         }
         catch (TaskCanceledException)
@@ -1586,7 +1597,7 @@ public partial class ReminderEditorPage : ContentPage
 
         UpdateNotificationWheelVisuals(
             NotificationAmountWheelLayout,
-            pendingNotificationAmount - 1);
+            pendingNotificationAmount);
 
 
         UpdateNotificationWheelVisuals(
@@ -1696,10 +1707,12 @@ public partial class ReminderEditorPage : ContentPage
     {
         UpdateNotificationDirectionWheel();
 
+        // Количество: 00..99 (100 значений).
+        // Индекс в колесе == отображаемое значение.
         CreateNotificationWheel(
             NotificationAmountWheelLayout,
-            Enumerable.Range(1, 99)
-                .Select(x => x.ToString())
+            Enumerable.Range(0, 100)
+                .Select(x => x.ToString("00"))
                 .ToArray());
 
         CreateNotificationWheel(
@@ -1712,7 +1725,10 @@ public partial class ReminderEditorPage : ContentPage
             });
 
         pendingNotificationDirectionIndex = 0;
+
+        // По умолчанию показываем "01".
         pendingNotificationAmount = 1;
+
         pendingNotificationUnitIndex = 1;
 
         UpdateNotificationWheelVisuals();
@@ -2284,7 +2300,7 @@ public partial class ReminderEditorPage : ContentPage
         if (editingNotification.TimerDuration is TimeSpan saved)
         {
             pendingTimerDays =
-                Math.Clamp(saved.Days, 0, 99);
+                Math.Clamp(saved.Days, 0, 100);
 
             pendingTimerHours =
                 Math.Clamp(saved.Hours, 0, 23);
@@ -2867,8 +2883,8 @@ public partial class ReminderEditorPage : ContentPage
     // ============================================================
 
     private async void OnTimerDisplayTapped(
-    object? sender,
-    TappedEventArgs e)
+        object? sender,
+        TappedEventArgs e)
     {
         // Обычный режим: редактирование даты/времени
         // через длительность таймера.
@@ -3391,11 +3407,11 @@ public partial class ReminderEditorPage : ContentPage
             timerMinutes);
 
 
-// Сбрасываем режим сохранения.
-// TimerDuration в NotificationTimeItem не изменяется.
-isSavingNotificationTimerDuration = false;
+        // Сбрасываем режим сохранения.
+        // TimerDuration в NotificationTimeItem не изменяется.
+        isSavingNotificationTimerDuration = false;
 
-// Закрываем окно без применения изменений.
-TimerDurationOverlay.IsVisible = false;
+        // Закрываем окно без применения изменений.
+        TimerDurationOverlay.IsVisible = false;
     }
 }
