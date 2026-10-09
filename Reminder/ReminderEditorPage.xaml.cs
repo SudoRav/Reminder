@@ -52,6 +52,7 @@ public partial class ReminderEditorPage : ContentPage
     private readonly ObservableCollection<NotificationTimeItem>
         notificationTimes;
 
+    private bool isSavingNotificationTimerDuration;
     private DisplayBoundary selectedBoundary;
 
     private bool isUpdatingPickers;
@@ -360,6 +361,7 @@ public partial class ReminderEditorPage : ContentPage
         object? sender,
         EventArgs e)
     {
+        editingNotification = null;
         DisplayPeriodLabel.IsVisible =
             true;
 
@@ -448,6 +450,8 @@ public partial class ReminderEditorPage : ContentPage
         DateTime initialDate,
         TimeSpan initialTime)
     {
+        NotificationTimerButton.IsVisible =
+    editingNotification is not null;
         isUpdatingPickers =
             true;
 
@@ -2260,6 +2264,101 @@ public partial class ReminderEditorPage : ContentPage
             : displayEnd;
     }
 
+    // ============================================================
+    // ОТКРЫТИЕ ТАЙМЕРА КНОПКОЙ 🔁
+    // ============================================================
+
+    private async void OnRepeatTimerClicked(
+        object? sender,
+        EventArgs e)
+    {
+        // Длительность можно сохранять только для оповещения.
+        if (editingNotification is null)
+        {
+            return;
+        }
+
+        isSavingNotificationTimerDuration = true;
+
+        // Если длительность уже сохранена — показываем её.
+        if (editingNotification.TimerDuration is TimeSpan saved)
+        {
+            pendingTimerDays =
+                Math.Clamp(saved.Days, 0, 99);
+
+            pendingTimerHours =
+                Math.Clamp(saved.Hours, 0, 23);
+
+            pendingTimerMinutes =
+                Math.Clamp(saved.Minutes, 0, 59);
+        }
+        else
+        {
+            // Если длительность ещё не задавали,
+            // используем текущее значение обратного отсчёта.
+            UpdateTimerFromDateTimePicker();
+
+            pendingTimerDays =
+                Math.Clamp(timerDays, 0, 99);
+
+            pendingTimerHours =
+                Math.Clamp(timerHours, 0, 23);
+
+            pendingTimerMinutes =
+                Math.Clamp(timerMinutes, 0, 59);
+        }
+
+        await ShowTimerDurationOverlayAsync();
+    }
+
+
+    // ============================================================
+    // ОТОБРАЖЕНИЕ ОКНА И ПОЗИЦИОНИРОВАНИЕ КОЛЁС
+    // ============================================================
+
+    private async Task ShowTimerDurationOverlayAsync()
+    {
+        TimerDurationOverlay.IsVisible = true;
+
+        await Task.Delay(50);
+
+        isTimerWheelProgrammaticScroll = true;
+
+        try
+        {
+            await DaysWheel.ScrollToAsync(
+                0,
+                pendingTimerDays * TimerWheelItemHeight,
+                false);
+
+            await HoursWheel.ScrollToAsync(
+                0,
+                pendingTimerHours * TimerWheelItemHeight,
+                false);
+
+            await MinutesWheel.ScrollToAsync(
+                0,
+                pendingTimerMinutes * TimerWheelItemHeight,
+                false);
+        }
+        finally
+        {
+            isTimerWheelProgrammaticScroll = false;
+        }
+
+        UpdateWheelVisuals(
+            DaysWheelLayout,
+            pendingTimerDays);
+
+        UpdateWheelVisuals(
+            HoursWheelLayout,
+            pendingTimerHours);
+
+        UpdateWheelVisuals(
+            MinutesWheelLayout,
+            pendingTimerMinutes);
+    }
+
 
     private void UpdateTimerFromCurrentTarget()
     {
@@ -2768,75 +2867,25 @@ public partial class ReminderEditorPage : ContentPage
     // ============================================================
 
     private async void OnTimerDisplayTapped(
-        object? sender,
-        TappedEventArgs e)
+    object? sender,
+    TappedEventArgs e)
     {
+        // Обычный режим: редактирование даты/времени
+        // через длительность таймера.
+        isSavingNotificationTimerDuration = false;
+
         UpdateTimerFromCurrentTarget();
 
-
         pendingTimerDays =
-            timerDays;
+            Math.Clamp(timerDays, 0, 99);
 
         pendingTimerHours =
-            timerHours;
+            Math.Clamp(timerHours, 0, 23);
 
         pendingTimerMinutes =
-            timerMinutes;
+            Math.Clamp(timerMinutes, 0, 59);
 
-
-        TimerDurationOverlay.IsVisible =
-            true;
-
-
-        await Task.Delay(50);
-
-
-        isTimerWheelProgrammaticScroll =
-            true;
-
-
-        try
-        {
-            await DaysWheel.ScrollToAsync(
-                0,
-                pendingTimerDays *
-                    TimerWheelItemHeight,
-                false);
-
-
-            await HoursWheel.ScrollToAsync(
-                0,
-                pendingTimerHours *
-                    TimerWheelItemHeight,
-                false);
-
-
-            await MinutesWheel.ScrollToAsync(
-                0,
-                pendingTimerMinutes *
-                    TimerWheelItemHeight,
-                false);
-        }
-        finally
-        {
-            isTimerWheelProgrammaticScroll =
-                false;
-        }
-
-
-        UpdateWheelVisuals(
-            DaysWheelLayout,
-            pendingTimerDays);
-
-
-        UpdateWheelVisuals(
-            HoursWheelLayout,
-            pendingTimerHours);
-
-
-        UpdateWheelVisuals(
-            MinutesWheelLayout,
-            pendingTimerMinutes);
+        await ShowTimerDurationOverlayAsync();
     }
 
 
@@ -2856,10 +2905,34 @@ public partial class ReminderEditorPage : ContentPage
                 pendingTimerMinutes,
                 0);
 
+        // ========================================================
+        // СОХРАНЕНИЕ ДЛИТЕЛЬНОСТИ ПО КНОПКЕ 🔁
+        // ========================================================
+
+        if (isSavingNotificationTimerDuration)
+        {
+            if (editingNotification is not null)
+            {
+                // Сохраняем длительность отдельно от даты оповещения.
+                editingNotification.TimerDuration = duration;
+
+                RequestAutoSave();
+            }
+
+            isSavingNotificationTimerDuration = false;
+
+            // Закрываем окно после подтверждения.
+            TimerDurationOverlay.IsVisible = false;
+
+            return;
+        }
+
+        // ========================================================
+        // СТАРОЕ ПОВЕДЕНИЕ ДЛЯ ОБЫЧНОГО ТАЙМЕРА
+        // ========================================================
 
         DateTime targetDateTime =
-            GetCurrentMinute()
-                .Add(duration);
+            GetCurrentMinute().Add(duration);
 
 
         // ========================================================
@@ -3318,8 +3391,11 @@ public partial class ReminderEditorPage : ContentPage
             timerMinutes);
 
 
-        // Закрываем окно БЕЗ применения изменений.
-        TimerDurationOverlay.IsVisible =
-            false;
+// Сбрасываем режим сохранения.
+// TimerDuration в NotificationTimeItem не изменяется.
+isSavingNotificationTimerDuration = false;
+
+// Закрываем окно без применения изменений.
+TimerDurationOverlay.IsVisible = false;
     }
 }

@@ -133,74 +133,107 @@
                 <!-- ================================================== -->
 
                 <CollectionView x:Name="NotificationTimesCollectionView"
-                                EmptyView="Оповещения не добавлены">
+                SelectionMode="None">
 
                     <CollectionView.ItemTemplate>
-
                         <DataTemplate>
-
                             <Border Margin="0,0,0,8"
-                                    Padding="10,0"
-                                    StrokeShape="RoundRectangle 8"
-                                    BackgroundColor="{AppThemeBinding Light=#EEF4FF, Dark=#1F2A36}">
+                Padding="10,8"
+                StrokeShape="RoundRectangle 8"
+                BackgroundColor="{AppThemeBinding Light=#EEF4FF, Dark=#1F2A36}">
 
-                                <Grid ColumnDefinitions="*,Auto,Auto,40,40,40">
+                            <Grid RowDefinitions="Auto,Auto"
+                  RowSpacing="4">
 
-                                    <Label Text="{Binding DisplayText}"
-                                           VerticalOptions="Center">
+                                <!-- Основная строка оповещения -->
+                                <Grid Grid.Row="0"
+                      ColumnDefinitions="*,Auto,Auto,40,40,40">
+
+                                    <Label Grid.Column="0"
+                           Text="{Binding DisplayText}"
+                           VerticalOptions="Center">
 
                                         <Label.GestureRecognizers>
-
                                             <TapGestureRecognizer
-                                                Tapped="OnNotificationTimeTapped"
-                                                CommandParameter="{Binding .}" />
-
+                                Tapped="OnNotificationTimeTapped"
+                                CommandParameter="{Binding .}" />
                                         </Label.GestureRecognizers>
 
                                     </Label>
 
                                     <Button Grid.Column="1"
-                                            Margin="0,2,8,2"
-        Text="⧉"
-        FontAttributes="Bold"                        
-        CommandParameter="{Binding .}"
-        HeightRequest="30"
-        WidthRequest="30"
-        Clicked="OnDuplicateNotificationClicked" />
+                            Margin="0,2,8,2"
+                            Text="⧉"
+                            FontAttributes="Bold"
+                            CommandParameter="{Binding .}"
+                            HeightRequest="30"
+                            WidthRequest="30"
+                            Clicked="OnDuplicateNotificationClicked" />
 
                                     <Button Grid.Column="2"
-                                            Margin="0,2,0,2"
-                                            Text="✖"
-                                            CommandParameter="{Binding .}"
-                                            HeightRequest="30"
-                                            WidthRequest="30"
-                                            Clicked="OnDeleteNotificationClicked" />
-
+                            Margin="0,2,0,2"
+                            Text="✖"
+                            CommandParameter="{Binding .}"
+                            HeightRequest="30"
+                            WidthRequest="30"
+                            Clicked="OnDeleteNotificationClicked" />
 
                                     <CheckBox Grid.Column="3"
-                                              IsChecked="{Binding IsOverlayEnabled, Mode=TwoWay}" />
-                                    <!-- OVERLAY -->
+                              IsChecked="{Binding IsOverlayEnabled, Mode=TwoWay}" />
 
                                     <CheckBox Grid.Column="4"
-                                              IsChecked="{Binding IsPushEnabled, Mode=TwoWay}" />
-                                    <!-- PUSH -->
+                              IsChecked="{Binding IsPushEnabled, Mode=TwoWay}" />
 
                                     <CheckBox Grid.Column="5"
-                                              IsChecked="{Binding IsAlarmEnabled, Mode=TwoWay}" />
-                                    <!-- ALARM -->
+                              IsChecked="{Binding IsAlarmEnabled, Mode=TwoWay}" />
 
                                 </Grid>
 
-                            </Border>
+                                    <!-- Строка длительности повтора -->
+                                    <Grid Grid.Row="1"
+      Padding="0,4,0,0"
+      IsVisible="False">
 
-                        </DataTemplate>
+                                        <Grid.Triggers>
+                                            <DataTrigger TargetType="Grid"
+                     Binding="{Binding TimerDuration}"
+                     Value="{x:Null}">
+                                                <Setter Property="IsVisible"
+                    Value="False" />
+                                            </DataTrigger>
 
+                                            <DataTrigger TargetType="Grid"
+                     Binding="{Binding TimerDuration}"
+                     Value="{x:Null}">
+                                                <Setter Property="HeightRequest"
+                    Value="0" />
+                                            </DataTrigger>
+
+                                            <DataTrigger TargetType="Grid"
+                     Binding="{Binding TimerDuration}"
+                     Value="{x:Null}">
+                                                <Setter Property="HeightRequest"
+                    Value="0" />
+                                            </DataTrigger>
+                                        </Grid.Triggers>
+
+                                        <Label FontSize="12"
+           TextColor="{AppThemeBinding Light=#586575, Dark=#B0BAC6}">
+                                            <Label.FormattedText>
+                                                <FormattedString>
+                                                    <Span Text="Повтор: " />
+                                                    <Span Text="{Binding TimerDuration}" />
+                                                </FormattedString>
+                                            </Label.FormattedText>
+                                        </Label>
+
+                                    </Grid>
+
+                                </Grid>
+
+                        </Border>
+                    </DataTemplate>
                     </CollectionView.ItemTemplate>
-
-                    <CollectionView.Footer>
-                        <BoxView HeightRequest="250"
-                 BackgroundColor="Transparent" />
-                    </CollectionView.Footer>
 
                 </CollectionView>
 
@@ -682,108 +715,131 @@
 
 
                     <!-- ================================================== -->
-                    <!-- ДАТА / ВРЕМЯ                                       -->
+                    <!-- ДАТА / ВРЕМЯ + КНОПКА 🔁                          -->
                     <!-- ================================================== -->
 
                     <Border Grid.Row="2"
-                            StrokeThickness="0"
-                            StrokeShape="RoundRectangle 18"
-                            BackgroundColor="{AppThemeBinding Light=#EBEEF3, Dark=#4A5056}">
+        StrokeThickness="0"
+        StrokeShape="RoundRectangle 18"
+        BackgroundColor="{AppThemeBinding Light=#EBEEF3, Dark=#4A5056}">
 
-                        <Grid RowDefinitions="Auto,1,Auto">
+                        <Grid ColumnDefinitions="*,72"
+          ColumnSpacing="0">
 
-                            <!-- Дата -->
-
-                            <Grid Padding="20,16"
-                                  ColumnDefinitions="Auto,*,Auto"
-                                  ColumnSpacing="16">
-
-                                <Label Text="📅"
-                                       FontSize="24"
-                                       VerticalOptions="Center" />
-
-                                <VerticalStackLayout Grid.Column="1"
-                                                     Spacing="2">
-
-                                    <Label Text="Дата"
-                                           FontAttributes="Bold" />
-
-                                    <Label x:Name="SelectedDateLabel"
-                                           Text="~" />
-
-                                </VerticalStackLayout>
-
-                                <Label Grid.Column="2"
-                                       Text="›"
-                                       FontSize="32"
-                                       VerticalOptions="Center" />
-
-                                <DatePicker x:Name="OverlayDatePicker"
-                                            Grid.ColumnSpan="3"
-                                            DateSelected="OnDisplayDateSelected"
-                                            Opacity="0.01"
-                                            HorizontalOptions="Fill"
-                                            VerticalOptions="Fill"
-                                            BackgroundColor="Transparent" />
-
-                                <Grid.GestureRecognizers>
-
-                                    <TapGestureRecognizer
-                                        Tapped="OnDateRowTapped" />
-
-                                </Grid.GestureRecognizers>
-
-                            </Grid>
+                            <!-- КНОПКА 🔁: находится позади блока даты/времени -->
+                            <Button x:Name="NotificationTimerButton"
+        Grid.Column="1"
+        Text="&#x1F501;&#xFE0E;"
+        FontSize="24"
+        Padding="0"
+        CornerRadius="18"
+        HorizontalOptions="Fill"
+        VerticalOptions="Fill"
+        ZIndex="0"
+        Clicked="OnRepeatTimerClicked" />
 
 
-                            <BoxView Grid.Row="1"
-                                     HeightRequest="1"
-                                     BackgroundColor="{AppThemeBinding Light=#D3D7DD, Dark=#111820}" />
+                            <!-- ОСНОВНОЙ БЛОК: перекрывает левую часть кнопки -->
+                            <Border Grid.Column="0"
+                Margin="0,0,-18,0"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 18"
+                BackgroundColor="{AppThemeBinding Light=#EBEEF3, Dark=#4A5056}"
+                ZIndex="1">
+
+                                <Grid RowDefinitions="Auto,1,Auto">
+
+                                    <!-- Дата -->
+                                    <Grid Padding="20,16"
+                      ColumnDefinitions="Auto,*,Auto"
+                      ColumnSpacing="16">
+
+                                        <Label Text="📅"
+                           FontSize="24"
+                           VerticalOptions="Center" />
+
+                                        <VerticalStackLayout Grid.Column="1"
+                                         Spacing="2">
+
+                                            <Label Text="Дата"
+                               FontAttributes="Bold" />
+
+                                            <Label x:Name="SelectedDateLabel"
+                               Text="~" />
+
+                                        </VerticalStackLayout>
+
+                                        <Label Grid.Column="2"
+                           Text="›"
+                           FontSize="32"
+                           VerticalOptions="Center" />
+
+                                        <DatePicker x:Name="OverlayDatePicker"
+                                Grid.ColumnSpan="3"
+                                DateSelected="OnDisplayDateSelected"
+                                Opacity="0.01"
+                                HorizontalOptions="Fill"
+                                VerticalOptions="Fill"
+                                BackgroundColor="Transparent" />
+
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer
+                            Tapped="OnDateRowTapped" />
+                                        </Grid.GestureRecognizers>
+
+                                    </Grid>
 
 
-                            <!-- Время -->
+                                    <!-- Разделитель -->
+                                    <BoxView Grid.Row="1"
+                         HeightRequest="1"
+                         BackgroundColor="{AppThemeBinding Light=#D3D7DD, Dark=#111820}" />
 
-                            <Grid Grid.Row="2"
-                                  Padding="20,16"
-                                  ColumnDefinitions="Auto,*,Auto"
-                                  ColumnSpacing="16">
 
-                                <Label Text="🕘"
-                                       FontSize="24"
-                                       VerticalOptions="Center" />
+                                    <!-- Время -->
+                                    <Grid Grid.Row="2"
+                      Padding="20,16"
+                      ColumnDefinitions="Auto,*,Auto"
+                      ColumnSpacing="16">
 
-                                <VerticalStackLayout Grid.Column="1"
-                                                     Spacing="2">
+                                        <Label Text="🕘"
+                           FontSize="24"
+                           VerticalOptions="Center" />
 
-                                    <Label Text="Время"
-                                           FontAttributes="Bold" />
+                                        <VerticalStackLayout Grid.Column="1"
+                                         Spacing="2">
 
-                                    <Label x:Name="SelectedTimeLabel"
-                                           Text="~" />
+                                            <Label Text="Время"
+                               FontAttributes="Bold" />
 
-                                </VerticalStackLayout>
+                                            <Label x:Name="SelectedTimeLabel"
+                               Text="~" />
 
-                                <Label Grid.Column="2"
-                                       Text="›"
-                                       FontSize="32"
-                                       VerticalOptions="Center" />
+                                        </VerticalStackLayout>
 
-                                <TimePicker x:Name="OverlayTimePicker"
-                                            Grid.ColumnSpan="3"
-                                            PropertyChanged="OnDisplayTimeChanged"
-                                            Opacity="0.01"
-                                            HorizontalOptions="Fill"
-                                            VerticalOptions="Fill"
-                                            BackgroundColor="Transparent" />
+                                        <Label Grid.Column="2"
+                           Text="›"
+                           FontSize="32"
+                           VerticalOptions="Center" />
 
-                                <Grid.GestureRecognizers>
+                                        <TimePicker x:Name="OverlayTimePicker"
+                                Grid.ColumnSpan="3"
+                                PropertyChanged="OnDisplayTimeChanged"
+                                Opacity="0.01"
+                                HorizontalOptions="Fill"
+                                VerticalOptions="Fill"
+                                BackgroundColor="Transparent" />
 
-                                    <TapGestureRecognizer
-                                        Tapped="OnTimeRowTapped" />
+                                        <Grid.GestureRecognizers>
+                                            <TapGestureRecognizer
+                            Tapped="OnTimeRowTapped" />
+                                        </Grid.GestureRecognizers>
 
-                                </Grid.GestureRecognizers>
+                                    </Grid>
 
-                            </Grid>
+                                </Grid>
+
+                            </Border>
 
                         </Grid>
 

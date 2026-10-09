@@ -8,6 +8,7 @@ namespace Reminder;
 
 public partial class MainPage : ContentPage
 {
+
     private readonly ObservableCollection<ReminderItem> reminders;
     private readonly ObservableCollection<ReminderItem> completedReminders;
     private readonly ReminderStore store;
@@ -44,6 +45,44 @@ public partial class MainPage : ContentPage
         RemindersCollectionView.ItemsSource = reminders;
 
         SubscribeToNotificationCompletion();
+    }
+
+    private bool isReminderSortScheduled;
+
+    private void ScheduleRemindersSort()
+    {
+        if (isSortingReminders ||
+            isReminderSortScheduled)
+        {
+            return;
+        }
+
+        isReminderSortScheduled = true;
+
+        _ = SortRemindersAfterCollectionChangeAsync();
+    }
+
+
+    private async Task SortRemindersAfterCollectionChangeAsync()
+    {
+        try
+        {
+            // Дожидаемся завершения текущего события
+            // CollectionChanged перед изменением коллекции.
+            await Task.Yield();
+
+            await MainThread.InvokeOnMainThreadAsync(
+                SortReminders);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(
+                $"Не удалось отсортировать напоминания: {ex}");
+        }
+        finally
+        {
+            isReminderSortScheduled = false;
+        }
     }
 
 
@@ -693,6 +732,7 @@ public partial class MainPage : ContentPage
         object? sender,
         NotifyCollectionChangedEventArgs e)
     {
+        // Отписываемся от изменённых или удалённых элементов.
         if (e.OldItems is not null)
         {
             foreach (ReminderItem reminder in e.OldItems)
@@ -702,6 +742,7 @@ public partial class MainPage : ContentPage
             }
         }
 
+        // Подписываемся на новые элементы.
         if (e.NewItems is not null)
         {
             foreach (ReminderItem reminder in e.NewItems)
@@ -711,9 +752,11 @@ public partial class MainPage : ContentPage
             }
         }
 
+        // Не изменяем ObservableCollection непосредственно
+        // внутри события CollectionChanged.
         if (!isSortingReminders)
         {
-            SortReminders();
+            ScheduleRemindersSort();
         }
     }
 
