@@ -17,9 +17,12 @@ namespace Reminder;
 
 public sealed class AndroidReminderNotificationService : IReminderNotificationService
 {
-private const string ChannelId = "persistent_reminders";          // теперь только для Push (громкий)
+    // Канал для разовых уведомлений (push, запрос разрешения): высокая важность.
+    private const string ChannelId = "persistent_reminders";
 
-private const string PersistentChannelId = "persistent_reminders_silent"; // липкие, тихий
+    // Канал для закреплённых напоминаний в шторке: тихий, без вибрации.
+    internal const string PersistentChannelId =
+        "persistent_reminders_silent";
 
     internal const string OverlayForegroundChannelId =
         "reminder_overlay_foreground";
@@ -123,38 +126,6 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
         }
     }
 
-    private static void EnsurePersistentChannel(Context context)
-    {
-        if (Build.VERSION.SdkInt < BuildVersionCodes.O)
-        {
-            return;
-        }
-
-        NotificationManager manager =
-            (NotificationManager)context.GetSystemService(
-                Context.NotificationService)!;
-
-        if (manager.GetNotificationChannel(PersistentChannelId) is not null)
-        {
-            return;
-        }
-
-        NotificationChannel channel =
-            new(
-                PersistentChannelId,
-                "Постоянные напоминания",
-                NotificationImportance.Low)
-            {
-                Description = "Липкие уведомления без звука и вибрации"
-            };
-
-        channel.EnableVibration(false);
-        channel.SetSound(null, null);
-        channel.SetShowBadge(false);
-
-        manager.CreateNotificationChannel(channel);
-    }
-
     private static readonly object reminderEditorRequestLock = new();
 
     private static int? pendingReminderEditorId;
@@ -193,61 +164,34 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
     // PUBLIC API
     // ============================================================
 
+    /// <summary>
+    /// Будильники этого напоминания + пересборка всего списка в шторке.
+    /// Вызывать ПОСЛЕ сохранения напоминания в хранилище.
+    /// </summary>
     public async Task ShowAsync(ReminderItem reminder)
     {
-        CreateOverlayForegroundNotificationChannel(reminder);
+        await ScheduleAsync(reminder);
 
-        ScheduleReminderAlarms(reminder);
-
-        if (await EnsureNotificationPermissionAsync())
-        {
-            if (reminder.ShowInNotificationCenter &&
-                ReminderDisplayFormatter.ShouldDisplayNow(
-                    reminder,
-                    DateTime.Now))
-            {
-                ShowPersistentNotification(
-                    context,
-                    reminder);
-            }
-            else
-            {
-                CancelPersistentNotification(
-                    context,
-                    reminder.Id);
-            }
-        }
-
-        await EnsureOverlayPermissionAsync();
+        SyncPersistentNotificationsFromStore(context);
     }
 
+    /// <summary>
+    /// Только будильники и разрешения. Шторку не трогает.
+    /// </summary>
     public async Task ScheduleAsync(ReminderItem reminder)
     {
-        CreateOverlayForegroundNotificationChannel(reminder);
-
         ScheduleReminderAlarms(reminder);
 
-        if (await EnsureNotificationPermissionAsync())
-        {
-            if (reminder.ShowInNotificationCenter &&
-                ReminderDisplayFormatter.ShouldDisplayNow(
-                    reminder,
-                    DateTime.Now))
-            {
-                ShowPersistentNotification(
-                    context,
-                    reminder);
-            }
-            else
-            {
-                CancelPersistentNotification(
-                    context,
-                    reminder.Id);
-            }
-        }
+        await EnsureNotificationPermissionAsync();
 
         await EnsureOverlayPermissionAsync();
     }
+
+    public void SyncNotificationCenter(
+        IReadOnlyList<ReminderItem> orderedReminders) =>
+        SyncPersistentNotifications(
+            context,
+            orderedReminders);
 
     public void Cancel(int reminderId)
     {
@@ -320,33 +264,139 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
     }
 
     // ============================================================
-    // PERSISTENT NOTIFICATION
+    // PERSISTENT NOTIFICATIONS (весь список целиком)
     // ============================================================
 
-    private static void ShowPersistentNotification(
-    Context context,
-    ReminderItem reminder)
+    private static void EnsurePersistentChannel(Context context)
     {
-        DateTime now = DateTime.Now;
-
-        if (!reminder.ShowInNotificationCenter ||
-        !ReminderDisplayFormatter.ShouldDisplayNow(reminder, now))
+        if (Build.VERSION.SdkInt < BuildVersionCodes.O)
         {
-            CancelPersistentNotification(context, reminder.Id);
             return;
         }
 
-        EnsurePersistentChannel(context);
+        NotificationManager manager =
+            (NotificationManager)context.GetSystemService(
+                Context.NotificationService)!;
 
-        PendingIntentFlags flags =
-            PendingIntentFlags.UpdateCurrent;
-
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
+        if (manager.GetNotificationChannel(PersistentChannelId) is not null)
         {
-            flags |= PendingIntentFlags.Immutable;
+            return;
         }
 
-        PendingIntent? pendingIntent =
+        NotificationChannel channel =
+            new(
+                PersistentChannelId,
+                "Список напоминаний",
+                NotificationImportance.Low)
+            {
+                Description =
+                    "Закреплённые напоминания в шторке"
+            };
+
+        channel.EnableVibration(false);
+
+        channel.SetSound(
+            null,
+            null);
+
+        channel.SetShowBadge(false);
+
+        manager.CreateNotificationChannel(
+            channel);
+    }
+
+    /// <summary>
+    /// Приводит шторку в соответствие со списком: показывает то, что должно
+    /// отображаться, в порядке списка; всё остальное убирает.
+    /// </summary>
+    internal static void SyncPersistentNotifications(
+        Context context,
+        IReadOnlyList<ReminderItem> orderedReminders)
+    {
+        EnsurePersistentChannel(context);
+
+        DateTime now = DateTime.Now;
+        HashSet<int> shownIds = [];
+        int sortIndex = 0;
+
+        foreach (ReminderItem reminder in orderedReminders)
+        {
+            bool shouldShow =
+                reminder.CompletedAt is null &&
+                reminder.ShowInNotificationCenter &&
+                ReminderDisplayFormatter.ShouldDisplayNow(
+                    reminder,
+                    now);
+
+            if (!shouldShow)
+            {
+                CancelPersistentNotification(
+                    context,
+                    reminder.Id);
+
+                continue;
+            }
+
+            PostPersistentNotification(
+                context,
+                reminder,
+                sortIndex++);
+
+            shownIds.Add(reminder.Id);
+        }
+
+        // Уборка «сирот»: persistent-уведомления используют Id == reminder.Id,
+        // остальные уведомления приложения имеют Id >= 10 000.
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.M)
+        {
+            NotificationManager manager =
+                (NotificationManager)context.GetSystemService(
+                    Context.NotificationService)!;
+
+            var active =
+                manager.GetActiveNotifications();
+
+            if (active is not null)
+            {
+                foreach (var item in active)
+                {
+                    if (item.Tag is null &&
+                        item.Id < OverlayForegroundNotificationIdOffset &&
+                        !shownIds.Contains(item.Id))
+                    {
+                        manager.Cancel(item.Id);
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Для ресиверов и сервисов, где MainPage недоступен.
+    /// </summary>
+    internal static void SyncPersistentNotificationsFromStore(
+        Context context)
+    {
+        List<ReminderItem> reminders =
+            LoadRemindersFromPreferences(
+                "reminders",
+                new JsonSerializerOptions(
+                    JsonSerializerDefaults.Web));
+
+        SyncPersistentNotifications(
+            context,
+            ReminderOrdering.Order(reminders).ToList());
+    }
+
+    private static void PostPersistentNotification(
+        Context context,
+        ReminderItem reminder,
+        int sortIndex)
+    {
+        PendingIntentFlags flags =
+            GetImmutableFlags();
+
+        PendingIntent? openPendingIntent =
             PendingIntent.GetActivity(
                 context,
                 reminder.Id,
@@ -365,13 +415,13 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
         Notification notification =
             new NotificationCompat.Builder(
                 context,
-                PersistentChannelId)              // тихий канал
+                PersistentChannelId)
 
             .SetSmallIcon(
                 Resource.Drawable.notification_icon)
 
-.SetContentTitle(
-    $"{GetGroupSymbol(reminder.Group)}{reminder.Text}")
+            .SetContentTitle(
+                reminder.Text)
 
             .SetContentText(
                 ReminderDisplayFormatter.GetDisplayText(
@@ -383,17 +433,21 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
                     .BigText(reminder.Text))
 
             .SetContentIntent(
-                pendingIntent)
+                openPendingIntent)
 
             .AddAction(
                 Resource.Drawable.notification_icon,
                 "Завершить",
                 completePendingIntent)
 
+            // Меньший ключ — выше в шторке. Работает среди уведомлений
+            // одного канала нашего приложения.
+            .SetSortKey(
+                sortIndex.ToString("D5"))
+
+            .SetOnlyAlertOnce(true)
             .SetOngoing(true)
             .SetAutoCancel(false)
-            .SetSilent(true)
-            .SetOnlyAlertOnce(true)
             .SetPriority(
                 NotificationCompat.PriorityLow)
 
@@ -404,39 +458,6 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
             reminder.Id,
             notification);
     }
-
-    private static int GetPersistentNotificationId(ReminderItem reminder)
-    {
-        // Приоритет групп в Notification Center:
-        // 🟥 группа 1 — первые
-        // 🟨 группа 2 — вторые
-        // без символа, группа 3 — третьи
-        // 🟦 группа 4 — четвёртые
-
-        const int groupStride = 1_000_000;
-
-        int groupOrder = reminder.Group switch
-        {
-            1 => 0,
-            2 => 1,
-            3 => 2,
-            4 => 3,
-            _ => 2
-        };
-
-        return groupOrder * groupStride + reminder.Id;
-    }
-
-    private static string GetGroupSymbol(int group)
-{
-    return group switch
-    {
-        1 => "🟥 ",
-        2 => "🟨 ",
-        4 => "🟦 ",
-        _ => string.Empty
-    };
-}
 
     private static void NotifyIfEnabled(
         Context context,
@@ -1277,44 +1298,15 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
             PermissionNotificationIdOffset + reminderId);
     }
 
+    /// <summary>
+    /// Пересобирает весь список в шторке из хранилища, чтобы порядок
+    /// всегда совпадал с приложением. Параметр оставлен для совместимости.
+    /// </summary>
     internal static void RestorePersistentNotification(
         Context context,
         int reminderId)
     {
-        ReminderItem? reminder =
-            LoadReminder(reminderId);
-
-        if (reminder is null)
-        {
-            return;
-        }
-
-        if (reminder.CompletedAt is not null)
-        {
-            CancelVisibleNotifications(
-                context,
-                reminderId);
-
-            return;
-        }
-
-        DateTime now = DateTime.Now;
-
-        if (reminder.ShowInNotificationCenter &&
-            ReminderDisplayFormatter.ShouldDisplayNow(
-                reminder,
-                now))
-        {
-            ShowPersistentNotification(
-                context,
-                reminder);
-        }
-        else
-        {
-            CancelPersistentNotification(
-                context,
-                reminderId);
-        }
+        SyncPersistentNotificationsFromStore(context);
     }
 
     internal static void DismissOverlay(Context context, int reminderId)
@@ -1493,39 +1485,8 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
 
         notificationManager.CreateNotificationChannel(
             channel);
-    }
 
-    private void CreateOverlayForegroundNotificationChannel(
-        ReminderItem reminder)
-    {
-        if (Build.VERSION.SdkInt <
-            BuildVersionCodes.O)
-        {
-            return;
-        }
-
-        NotificationChannel channel =
-            new(
-                OverlayForegroundChannelId,
-                ReminderDisplayFormatter.GetDisplayText(
-                    reminder.DisplayStart,
-                    reminder.DisplayEnd),
-                NotificationImportance.Min)
-            {
-                Description =
-                    reminder.Text
-            };
-
-        channel.EnableVibration(false);
-
-        channel.SetSound(
-            null,
-            null);
-
-        channel.SetShowBadge(false);
-
-        notificationManager.CreateNotificationChannel(
-            channel);
+        EnsurePersistentChannel(context);
     }
 
     private void CreateAlarmNotificationChannel()
@@ -1578,13 +1539,6 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
             return;
         }
 
-        // Обычное одноразовое уведомление.
-        // Не используем ID постоянного уведомления.
-        int notificationId =
-            PermissionNotificationIdOffset +
-            100_000 +
-            reminder.Id;
-
         PendingIntentFlags flags =
             PendingIntentFlags.UpdateCurrent;
 
@@ -1597,31 +1551,36 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
             PendingIntent.GetActivity(
                 context,
                 reminder.Id,
-                CreateOpenEditorIntent(reminder.Id),
+                CreateOpenEditorIntent(
+                    reminder.Id),
                 flags);
 
         Notification notification =
             new NotificationCompat.Builder(
                 context,
                 ChannelId)
+
             .SetSmallIcon(
                 Resource.Drawable.notification_icon)
+
             .SetContentTitle(
                 reminder.Text)
+
             .SetContentText(
                 ReminderDisplayFormatter.GetDisplayText(
                     reminder.DisplayStart,
                     reminder.DisplayEnd))
+
             .SetStyle(
                 new NotificationCompat.BigTextStyle()
                     .BigText(reminder.Text))
+
             .SetContentIntent(
                 pendingIntent)
 
-            // Не закрепляем уведомление.
+            // Push — самостоятельное одноразовое уведомление.
+            // Кнопки "Завершить" здесь НЕТ.
             .SetOngoing(false)
-
-            // Убираем уведомление после нажатия.
             .SetAutoCancel(true)
 
             .SetPriority(
@@ -1634,6 +1593,17 @@ private const string PersistentChannelId = "persistent_reminders_silent"; // л�
 
         if (manager.AreNotificationsEnabled())
         {
+            /*
+             * Push — одноразовое уведомление.
+             *
+             * Используется отдельный ID,
+             * чтобы Push не заменял persistent notification.
+             */
+            int notificationId =
+                PermissionNotificationIdOffset +
+                100_000 +
+                reminder.Id;
+
             manager.Notify(
                 notificationId,
                 notification);
@@ -1713,6 +1683,7 @@ public sealed class DisplayStartReminderReceiver
             return;
         }
 
+        // Пересобирает весь список, чтобы порядок совпадал с приложением.
         AndroidReminderNotificationService
             .RestorePersistentNotification(
                 context,
@@ -1785,13 +1756,15 @@ public sealed class DisplayEndReminderReceiver
          * Сам ReminderItem переносим в Completed
          * только если это явно разрешено.
          */
-        if (!reminder.AutoCompleteOnDisplayEnd)
-        {
-            return;
-        }
+        bool completed =
+            reminder.AutoCompleteOnDisplayEnd &&
+            AndroidReminderNotificationService
+                .CompleteReminderInStore(reminderId);
 
-        if (AndroidReminderNotificationService
-                .CompleteReminderInStore(reminderId))
+        AndroidReminderNotificationService
+            .SyncPersistentNotificationsFromStore(context);
+
+        if (completed)
         {
             MainThread.BeginInvokeOnMainThread(
                 () =>
@@ -1904,7 +1877,7 @@ public sealed class CompleteReminderReceiver
         }
 
         int reminderId =
-            intent.GetIntExtra(
+            intent!.GetIntExtra(
                 AndroidReminderNotificationService.ReminderIdExtra,
                 0);
 
@@ -1950,6 +1923,12 @@ public sealed class CompleteReminderReceiver
                 context,
                 reminderId);
 
+        /*
+         * Пересобираем список в шторке из хранилища.
+         */
+        AndroidReminderNotificationService
+            .SyncPersistentNotificationsFromStore(context);
+
         if (completed)
         {
             MainThread.BeginInvokeOnMainThread(
@@ -1961,10 +1940,8 @@ public sealed class CompleteReminderReceiver
     }
 }
 
-[Service(
-    Enabled = true,
-    Exported = false,
-    ForegroundServiceType = Android.Content.PM.ForegroundService.TypeSpecialUse)]
+
+[Service(Enabled = true, Exported = false)]
 public sealed class ReminderOverlayService : Service
 {
     private static ReminderOverlayService? Current;
@@ -2020,25 +1997,14 @@ public sealed class ReminderOverlayService : Service
 
     public override IBinder? OnBind(Intent? intent) => null;
 
-
     public override StartCommandResult OnStartCommand(
         Intent? intent,
         StartCommandFlags flags,
         int startId)
     {
-        if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
-        {
-            StartForeground(
-                AndroidReminderNotificationService.OverlayForegroundNotificationIdOffset,
-                BuildForegroundNotification(),
-                Android.Content.PM.ForegroundService.TypeSpecialUse);
-        }
-        else
-        {
-            StartForeground(
-                AndroidReminderNotificationService.OverlayForegroundNotificationIdOffset,
-                BuildForegroundNotification());
-        }
+        StartForeground(
+            AndroidReminderNotificationService.OverlayForegroundNotificationIdOffset,
+            BuildForegroundNotification());
 
         reminderId =
             intent?.GetIntExtra(

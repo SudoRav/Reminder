@@ -11,13 +11,11 @@ public partial class ReminderEditorPage : ContentPage
     // ОСНОВНЫЕ ТИПЫ
     // ============================================================
 
-
     private enum DisplayBoundary
     {
         Start,
         End,
     }
-
 
     private enum NotificationReference
     {
@@ -26,13 +24,11 @@ public partial class ReminderEditorPage : ContentPage
         End,
     }
 
-
     private enum NotificationDirection
     {
         Through,
         Before,
     }
-
 
     private enum NotificationUnit
     {
@@ -42,12 +38,10 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
-
     // ============================================================
     // ОСНОВНЫЕ ПОЛЯ
     // ============================================================
 
-    private const int ReminderTextMaxLength = 1024;
     private readonly ReminderItem? reminder;
     private int reminderId;
 
@@ -79,6 +73,9 @@ public partial class ReminderEditorPage : ContentPage
     private bool isAutoSaveEnabled = false;
 
     private bool isClosing;
+
+    // true, пока идёт сохранение (защита от двойного нажатия).
+    private bool isSaving;
 
 
     // ============================================================
@@ -181,9 +178,6 @@ public partial class ReminderEditorPage : ContentPage
         ReminderTextEditor.Text =
             reminder?.Text ?? string.Empty;
 
-        UpdateReminderCharacterLimit(
-    ReminderTextEditor.Text?.Length ?? 0);
-
         displayStart =
             reminder?.DisplayStart;
 
@@ -191,7 +185,7 @@ public partial class ReminderEditorPage : ContentPage
             reminder?.DisplayEnd;
 
         group =
-    reminder?.Group ?? 3;
+            reminder?.Group ?? 3;
 
         autoCompleteOnDisplayEnd =
             reminder?.AutoCompleteOnDisplayEnd ?? false;
@@ -249,65 +243,6 @@ public partial class ReminderEditorPage : ContentPage
         countdownTimer.Start();
     }
 
-    private void OnReminderChanged(
-    object? sender,
-    TextChangedEventArgs e)
-    {
-        if (sender is not Editor editor)
-        {
-            return;
-        }
-
-        string text =
-            editor.Text ?? string.Empty;
-
-        // ========================================================
-        // ОГРАНИЧЕНИЕ МАКСИМАЛЬНОЙ ДЛИНЫ
-        // ========================================================
-
-        if (text.Length > ReminderTextMaxLength)
-        {
-            // Обрезаем и возвращаем в редактор.
-            string trimmed =
-                text.Substring(0, ReminderTextMaxLength);
-
-            // Чтобы не зациклиться, проверяем реальное изменение.
-            if (editor.Text != trimmed)
-            {
-                editor.Text = trimmed;
-
-                // После установки Text событие TextChanged
-                // вызовется повторно, и там мы уже обновим счётчик.
-                return;
-            }
-        }
-
-        // ========================================================
-        // СЧЁТЧИК СИМВОЛОВ
-        // ========================================================
-
-        UpdateReminderCharacterLimit(text.Length);
-
-        RequestAutoSave();
-    }
-
-    private void UpdateReminderCharacterLimit(int count)
-    {
-        // На всякий случай подстрахуемся от выхода за границы.
-        if (count < 0)
-        {
-            count = 0;
-        }
-
-        if (count > ReminderTextMaxLength)
-        {
-            count = ReminderTextMaxLength;
-        }
-
-        ReminderCharacterLimit.Text =
-            $"{count} / {ReminderTextMaxLength}";
-    }
-
     private void UpdateGroupButtonVisual()
     {
         switch (group)
@@ -363,22 +298,22 @@ public partial class ReminderEditorPage : ContentPage
     }
 
     private void OnGroupSelectionOverlayTapped(
-    object? sender,
-    TappedEventArgs e)
+        object? sender,
+        TappedEventArgs e)
     {
         GroupSelectionOverlay.IsVisible = false;
     }
 
     private void OnGroupButtonClicked(
-    object? sender,
-    EventArgs e)
+        object? sender,
+        EventArgs e)
     {
         GroupSelectionOverlay.IsVisible = true;
     }
 
     private void OnEditorGroupButtonClicked(
-    object? sender,
-    EventArgs e)
+        object? sender,
+        EventArgs e)
     {
         if (sender is not Button button)
         {
@@ -444,10 +379,8 @@ public partial class ReminderEditorPage : ContentPage
         }
         else if (displayEnd is DateTime savedEnd)
         {
-            //initialDate =
-            //    savedEnd.Date.AddDays(-1);
             initialDate =
-    savedEnd.Date.AddDays(0);
+                savedEnd.Date.AddDays(0);
 
             initialTime =
                 TimeSpan.Zero;
@@ -490,18 +423,14 @@ public partial class ReminderEditorPage : ContentPage
         }
         else if (displayStart is DateTime savedStart)
         {
-            //initialDate =
-            //    savedStart.Date.AddDays(1);
             initialDate =
-    savedStart.Date.AddDays(0);
+                savedStart.Date.AddDays(0);
 
             initialTime =
                 new TimeSpan(23, 0, 0);
         }
         else
         {
-            //initialDate =
-            //    DateTime.Today.AddDays(1);
             initialDate =
                 DateTime.Today.AddDays(0);
 
@@ -749,6 +678,13 @@ public partial class ReminderEditorPage : ContentPage
     // АВТОСОХРАНЕНИЕ
     // ============================================================
 
+    private void OnReminderChanged(
+        object? sender,
+        TextChangedEventArgs e)
+    {
+        RequestAutoSave();
+    }
+
 
     private Task NotifySaveRequestedAsync(
         ReminderItem editedReminder)
@@ -763,7 +699,7 @@ public partial class ReminderEditorPage : ContentPage
 
 
     private ReminderItem CreateReminderForSave(
-    string text)
+        string text)
     {
         return new ReminderItem
         {
@@ -966,7 +902,7 @@ public partial class ReminderEditorPage : ContentPage
 
             await NotificationAmountWheel.ScrollToAsync(
                 0,
-                pendingNotificationAmount *
+                (pendingNotificationAmount - 1) *
                     NotificationWheelItemHeight,
                 false);
 
@@ -1070,8 +1006,8 @@ public partial class ReminderEditorPage : ContentPage
         // ========================================================
 
         if (notificationDirectionIndex == 1 &&
-    displayStart is null &&
-    displayEnd is null)
+            displayStart is null &&
+            displayEnd is null)
         {
             notificationDirectionIndex = 0;
             pendingNotificationDirectionIndex = 0;
@@ -1467,48 +1403,22 @@ public partial class ReminderEditorPage : ContentPage
     // КОЛЕСО ЧИСЛА 1..99
     // ============================================================
 
-    //private void OnNotificationAmountWheelScrolled(
-    //    object? sender,
-    //    ScrolledEventArgs e)
-    //{
-    //    pendingNotificationAmount =
-    //        GetNotificationWheelIndex(
-    //            e.ScrollY,
-    //            99) + 1;
-
-
-    //    notificationAmount =
-    //        pendingNotificationAmount;
-
-
-    //    UpdateNotificationWheelVisuals();
-
-
-    //    if (!isNotificationWheelProgrammaticScroll)
-    //    {
-    //        notificationAmountSnapCancellation?.Cancel();
-
-    //        notificationAmountSnapCancellation =
-    //            new CancellationTokenSource();
-
-    //        _ = SnapNotificationAmountAsync(
-    //            notificationAmountSnapCancellation.Token);
-    //    }
-    //}
-
     private void OnNotificationAmountWheelScrolled(
-    object? sender,
-    ScrolledEventArgs e)
+        object? sender,
+        ScrolledEventArgs e)
     {
         pendingNotificationAmount =
             GetNotificationWheelIndex(
                 e.ScrollY,
-                100);
+                99) + 1;
+
 
         notificationAmount =
             pendingNotificationAmount;
 
+
         UpdateNotificationWheelVisuals();
+
 
         if (!isNotificationWheelProgrammaticScroll)
         {
@@ -1539,7 +1449,7 @@ public partial class ReminderEditorPage : ContentPage
 
             await SnapNotificationWheelAsync(
                 NotificationAmountWheel,
-                pendingNotificationAmount,
+                pendingNotificationAmount - 1,
                 token);
         }
         catch (TaskCanceledException)
@@ -1672,7 +1582,7 @@ public partial class ReminderEditorPage : ContentPage
 
         UpdateNotificationWheelVisuals(
             NotificationAmountWheelLayout,
-            pendingNotificationAmount);
+            pendingNotificationAmount - 1);
 
 
         UpdateNotificationWheelVisuals(
@@ -1784,21 +1694,20 @@ public partial class ReminderEditorPage : ContentPage
 
         CreateNotificationWheel(
             NotificationAmountWheelLayout,
-            Enumerable.Range(0, 100)
-                .Select(x => x.ToString("00"))
+            Enumerable.Range(1, 99)
+                .Select(x => x.ToString())
                 .ToArray());
 
         CreateNotificationWheel(
             NotificationUnitWheelLayout,
             new[]
             {
-            "Мин",
-            "Час",
-            "Ден",
+                "Мин",
+                "Час",
+                "Ден",
             });
 
         pendingNotificationDirectionIndex = 0;
-        notificationAmount = 1;
         pendingNotificationAmount = 1;
         pendingNotificationUnitIndex = 1;
 
@@ -1819,8 +1728,8 @@ public partial class ReminderEditorPage : ContentPage
                 NotificationDirectionWheelLayout,
                 new[]
                 {
-                "Чер",
-                "За",
+                    "Чер",
+                    "За",
                 });
         }
         else
@@ -1829,7 +1738,7 @@ public partial class ReminderEditorPage : ContentPage
                 NotificationDirectionWheelLayout,
                 new[]
                 {
-                "Чер",
+                    "Чер",
                 });
 
             // Если периода нет, "За" физически недоступно.
@@ -1908,44 +1817,27 @@ public partial class ReminderEditorPage : ContentPage
     // ============================================================
 
     private void AddNotificationTime(
-        DateTime notificationTime,
-        NotificationTimeItem? source = null)
+        DateTime notificationTime)
     {
-        if (notificationTimes.Any(
+        if (!notificationTimes.Any(
                 x => x.Time == notificationTime))
         {
-            return;
+            NotificationTimeItem item =
+                new(notificationTime);
+
+            item.PropertyChanged +=
+                OnNotificationTimeItemChanged;
+
+            notificationTimes.Add(
+                item);
+
+            SortNotifications();
+
+            RequestAutoSave();
         }
-
-        NotificationTimeItem item;
-
-        if (source is not null)
-        {
-            // Копируем все настройки исходного оповещения.
-            NotificationTimeSettings settings = source.ToSettings();
-
-            settings.Time = notificationTime;
-
-            item = new NotificationTimeItem(settings);
-        }
-        else
-        {
-            // Создаём обычное оповещение с настройками по умолчанию.
-            item = new NotificationTimeItem(notificationTime);
-        }
-
-        item.PropertyChanged +=
-            OnNotificationTimeItemChanged;
-
-        notificationTimes.Add(item);
-
-        SortNotifications();
-
-        RequestAutoSave();
     }
 
 
-    //проверить работоспособность
     private void OnDeleteNotificationClicked(
         object? sender,
         EventArgs e)
@@ -1963,18 +1855,18 @@ public partial class ReminderEditorPage : ContentPage
             RequestAutoSave();
         }
     }
-    //проверить работоспособность
 
     private void OnDuplicateNotificationClicked(
         object? sender,
         EventArgs e)
     {
         if (sender is Button button &&
-            button.CommandParameter is NotificationTimeItem item)
+            button.CommandParameter
+                is NotificationTimeItem item)
         {
-            AddNotificationTime(
-                item.Time.AddHours(1),
-                item);
+            AddNotificationTime(item.Time.AddHours(1));
+
+            RequestAutoSave();
         }
     }
 
@@ -2162,8 +2054,6 @@ public partial class ReminderEditorPage : ContentPage
         notificationAmountSnapCancellation?.Cancel();
 
         notificationUnitSnapCancellation?.Cancel();
-
-
     }
 
 
@@ -2177,30 +2067,56 @@ public partial class ReminderEditorPage : ContentPage
     }
 
 
+    /// <summary>
+    /// Сохраняет напоминание (через SaveRequested — MainPage обновляет
+    /// список, хранилище и notification center) и закрывает страницу,
+    /// возвращая пользователя на MainPage.
+    /// </summary>
     private async Task SaveAndCloseAsync(
-    string text)
+        string text)
     {
-        if (isClosing)
+        if (isClosing || isSaving)
         {
             return;
         }
+
+        isSaving = true;
+
+        // ------------------------------------------------------------
+        // 1. Сохранение
+        // ------------------------------------------------------------
 
         try
         {
             if (!string.IsNullOrWhiteSpace(text))
             {
-                ReminderItem editedReminder =
-                    CreateReminderForSave(text);
-
                 await NotifySaveRequestedAsync(
-                    editedReminder);
+                    CreateReminderForSave(text));
             }
+        }
+        catch (Exception ex)
+        {
+            isSaving = false;
 
-            // Даём текущему UI-событию завершиться.
-            await Task.Yield();
+            System.Diagnostics.Debug.WriteLine(
+                $"Ошибка сохранения ReminderEditorPage: {ex}");
 
-            isClosing = true;
+            await DisplayAlert(
+                "Ошибка",
+                $"Не удалось сохранить напоминание.\n\n{ex.GetType().Name}: {ex.Message}",
+                "OK");
 
+            return;
+        }
+
+        // ------------------------------------------------------------
+        // 2. Возврат на MainPage
+        // ------------------------------------------------------------
+
+        isClosing = true;
+
+        try
+        {
             await MainThread.InvokeOnMainThreadAsync(
                 async () =>
                 {
@@ -2208,17 +2124,18 @@ public partial class ReminderEditorPage : ContentPage
                 });
         }
         catch (Exception ex)
-        {//постоянно вызывыается исключяение
+        {
             isClosing = false;
+            isSaving = false;
 
             System.Diagnostics.Debug.WriteLine(
-                $"Ошибка сохранения ReminderEditorPage: {ex}");
+                $"Ошибка закрытия ReminderEditorPage: {ex}");
 
             await DisplayAlert(
                 "Ошибка",
-                $"Не удалось сохранить напоминание.\n\n{ex.Message}",
+                $"Не удалось закрыть страницу.\n\n{ex.GetType().Name}: {ex.Message}",
                 "OK");
-        }//постоянно вызывыается исключяение
+        }
     }
 
 
@@ -2236,8 +2153,8 @@ public partial class ReminderEditorPage : ContentPage
     }
 
     private void settime0600(
-object? sender,
-EventArgs e)
+        object? sender,
+        EventArgs e)
     {
         OverlayTimePicker.Time =
             new TimeSpan(6, 0, 0);
@@ -2252,24 +2169,24 @@ EventArgs e)
     }
 
     private void settime1200(
-    object? sender,
-    EventArgs e)
+        object? sender,
+        EventArgs e)
     {
         OverlayTimePicker.Time =
             new TimeSpan(12, 0, 0);
     }
 
     private void settime1500(
-    object? sender,
-    EventArgs e)
+        object? sender,
+        EventArgs e)
     {
         OverlayTimePicker.Time =
             new TimeSpan(15, 0, 0);
     }
 
     private void settime1800(
-object? sender,
-EventArgs e)
+        object? sender,
+        EventArgs e)
     {
         OverlayTimePicker.Time =
             new TimeSpan(18, 0, 0);
@@ -3334,6 +3251,17 @@ EventArgs e)
         hoursSnapCancellation?.Cancel();
         minutesSnapCancellation?.Cancel();
 
+
+        // --------------------------------------------------------
+        // Восстанавливаем исходные значения колёс.
+        //
+        // timerDays / timerHours / timerMinutes —
+        // это последнее ПОДТВЕРЖДЁННОЕ значение.
+        //
+        // pendingTimer* — временные значения, изменяемые
+        // пользователем во время открытого окна.
+        // --------------------------------------------------------
+
         pendingTimerDays =
             timerDays;
 
@@ -3343,6 +3271,11 @@ EventArgs e)
         pendingTimerMinutes =
             timerMinutes;
 
+
+        // --------------------------------------------------------
+        // Возвращаем визуальное положение колёс
+        // к подтверждённому значению.
+        // --------------------------------------------------------
 
         isTimerWheelProgrammaticScroll =
             true;
