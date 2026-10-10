@@ -24,6 +24,19 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     internal const string PersistentChannelId =
         "persistent_reminders_silent";
 
+    // Канал для push с повторяющимся звуком/вибрацией (Insistent).
+    internal const string InsistentPushChannelId =
+        "scheduled_push_insistent";
+
+    // Id одноразового push-уведомления (раньше считался прямо в методе).
+    internal const int PushNotificationIdOffset =
+        PermissionNotificationIdOffset + 100_000;
+
+    // Через сколько push сам исчезнет, если пользователь его не тронул.
+    // Нужен, чтобы звук не повторялся бесконечно.
+    private const long InsistentPushTimeoutMillis =
+        5 * 60 * 1000;
+
     internal const string OverlayForegroundChannelId =
         "reminder_overlay_foreground";
 
@@ -158,6 +171,62 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
         CreateNotificationChannel();
         CreateAlarmNotificationChannel();
+        EnsureInsistentPushChannel(context);
+    }
+
+    private static void EnsureInsistentPushChannel(Context context)
+    {
+        if (Build.VERSION.SdkInt < BuildVersionCodes.O)
+        {
+            return;
+        }
+
+        NotificationManager manager =
+            (NotificationManager)context.GetSystemService(
+                Context.NotificationService)!;
+
+        if (manager.GetNotificationChannel(
+                InsistentPushChannelId) is not null)
+        {
+            return;
+        }
+
+        NotificationChannel channel =
+            new(
+                InsistentPushChannelId,
+                "Настойчивые push-напоминания",
+                NotificationImportance.High)
+            {
+                Description =
+                    "Повторяют звук и вибрацию, пока уведомление не открыто"
+            };
+
+        channel.EnableVibration(true);
+
+        channel.SetVibrationPattern(
+            new long[]
+            {
+            0,
+            300,
+            150,
+            300
+            });
+
+        // Insistent повторяет именно звук канала, поэтому звук обязателен.
+        channel.SetSound(
+            RingtoneManager.GetDefaultUri(
+                RingtoneType.Notification),
+            new AudioAttributes.Builder()
+                .SetUsage(AudioUsageKind.Notification)!
+                .SetContentType(AudioContentType.Sonification)!
+                .Build());
+
+        channel.EnableLights(true);
+
+        channel.LockscreenVisibility =
+            NotificationVisibility.Public;
+
+        manager.CreateNotificationChannel(channel);
     }
 
     // ============================================================
@@ -1659,6 +1728,9 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             return;
         }
 
+        // Процесс мог быть запущен ресивером без конструктора сервиса.
+        EnsureInsistentPushChannel(context);
+
         PendingIntentFlags flags =
             PendingIntentFlags.UpdateCurrent;
 
@@ -1678,20 +1750,13 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
         Notification notification =
             new NotificationCompat.Builder(
                 context,
-                ChannelId)
+                InsistentPushChannelId)
 
             .SetSmallIcon(
                 Resource.Drawable.notification_icon)
 
-.SetContentTitle(
-    reminder.Group switch
-    {
-        1 => $"🟥 {reminder.Text}",
-        2 => $"🟨 {reminder.Text}",
-        3 => reminder.Text,
-        4 => $"🟦 {reminder.Text}",
-        _ => reminder.Text
-    })
+            .SetContentTitle(
+                reminder.Text)
 
             .SetContentText(
                 ReminderDisplayFormatter.GetDisplayText(
@@ -1707,13 +1772,32 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
             // Push — самостоятельное одноразовое уведомление.
             // Кнопки "Завершить" здесь НЕТ.
+            // Тап или смахивание останавливают повтор звука.
             .SetOngoing(false)
             .SetAutoCancel(true)
+            .SetOnlyAlertOnce(false)
+
+            .SetCategory(
+                NotificationCompat.CategoryReminder)
+
+            .SetVisibility(
+                NotificationCompat.VisibilityPublic)
 
             .SetPriority(
                 NotificationCompat.PriorityHigh)
 
+            // Страховка: если пользователь не отреагировал,
+            // уведомление исчезнет само и звук прекратится.
+            .SetTimeoutAfter(
+                InsistentPushTimeoutMillis)
+
             .Build();
+
+        // Настойчивое уведомление: звук и вибрация повторяются,
+        // пока уведомление не открыто, не смахнуто и не отменено.
+        // У NotificationCompat.Builder нет сеттера для этого флага.
+        notification.Flags |=
+            NotificationFlags.Insistent;
 
         NotificationManagerCompat manager =
             NotificationManagerCompat.From(context);
@@ -1726,13 +1810,8 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
              * Используется отдельный ID,
              * чтобы Push не заменял persistent notification.
              */
-            int notificationId =
-                PermissionNotificationIdOffset +
-                100_000 +
-                reminder.Id;
-
             manager.Notify(
-                notificationId,
+                PushNotificationIdOffset + reminder.Id,
                 notification);
         }
     }
