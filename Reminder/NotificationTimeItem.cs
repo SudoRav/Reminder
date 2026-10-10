@@ -67,6 +67,7 @@ public bool HasTimerDuration => timerDuration.HasValue;
         {
             if (SetProperty(ref timerDuration, value))
             {
+                // Производные свойства, на которые подписан интерфейс.
                 OnPropertyChanged(nameof(HasTimerDuration));
                 OnPropertyChanged(nameof(TimerDurationText));
             }
