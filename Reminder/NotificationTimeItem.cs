@@ -28,7 +28,7 @@ public bool HasTimerDuration => timerDuration.HasValue;
 
             TimeSpan duration = timerDuration.Value;
 
-            return $"Повтор: {duration.Days:D2}:{duration.Hours:D2}:{duration.Minutes:D2}";
+            return $"Периодичность: {duration.Days:D2}:{duration.Hours:D2}:{duration.Minutes:D2}";
         }
     }
 
@@ -63,7 +63,14 @@ public bool HasTimerDuration => timerDuration.HasValue;
     public TimeSpan? TimerDuration
     {
         get => timerDuration;
-        set => SetProperty(ref timerDuration, value);
+        set
+        {
+            if (SetProperty(ref timerDuration, value))
+            {
+                OnPropertyChanged(nameof(HasTimerDuration));
+                OnPropertyChanged(nameof(TimerDurationText));
+            }
+        }
     }
 
     // ============================================================

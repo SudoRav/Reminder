@@ -143,7 +143,7 @@
                 BackgroundColor="{AppThemeBinding Light=#EEF4FF, Dark=#1F2A36}">
 
                             <Grid RowDefinitions="Auto,Auto"
-                  RowSpacing="4">
+                  RowSpacing="0">
 
                                 <!-- Основная строка оповещения -->
                                 <Grid Grid.Row="0"
@@ -191,41 +191,11 @@
 
                                     <!-- Строка длительности повтора -->
                                     <Grid Grid.Row="1"
-      Padding="0,4,0,0"
-      IsVisible="False">
-
-                                        <Grid.Triggers>
-                                            <DataTrigger TargetType="Grid"
-                     Binding="{Binding TimerDuration}"
-                     Value="{x:Null}">
-                                                <Setter Property="IsVisible"
-                    Value="False" />
-                                            </DataTrigger>
-
-                                            <DataTrigger TargetType="Grid"
-                     Binding="{Binding TimerDuration}"
-                     Value="{x:Null}">
-                                                <Setter Property="HeightRequest"
-                    Value="0" />
-                                            </DataTrigger>
-
-                                            <DataTrigger TargetType="Grid"
-                     Binding="{Binding TimerDuration}"
-                     Value="{x:Null}">
-                                                <Setter Property="HeightRequest"
-                    Value="0" />
-                                            </DataTrigger>
-                                        </Grid.Triggers>
+      IsVisible="{Binding HasTimerDuration}">
 
                                         <Label FontSize="12"
-           TextColor="{AppThemeBinding Light=#586575, Dark=#B0BAC6}">
-                                            <Label.FormattedText>
-                                                <FormattedString>
-                                                    <Span Text="Повтор: " />
-                                                    <Span Text="{Binding TimerDuration}" />
-                                                </FormattedString>
-                                            </Label.FormattedText>
-                                        </Label>
+           Text="{Binding TimerDurationText}"
+           TextColor="{AppThemeBinding Light=#586575, Dark=#B0BAC6}" />
 
                                     </Grid>
 
@@ -715,7 +685,7 @@
 
 
                     <!-- ================================================== -->
-                    <!-- ДАТА / ВРЕМЯ + КНОПКА 🔁                          -->
+                    <!-- ДАТА / ВРЕМЯ                                      -->
                     <!-- ================================================== -->
 
                     <Border Grid.Row="2"
@@ -723,25 +693,12 @@
         StrokeShape="RoundRectangle 18"
         BackgroundColor="{AppThemeBinding Light=#EBEEF3, Dark=#4A5056}">
 
-                        <Grid ColumnDefinitions="*,72"
+                        <Grid ColumnDefinitions="*"
           ColumnSpacing="0">
 
-                            <!-- КНОПКА 🔁: находится позади блока даты/времени -->
-                            <Button x:Name="NotificationTimerButton"
-        Grid.Column="1"
-        Text="&#x1F501;&#xFE0E;"
-        FontSize="24"
-        Padding="0"
-        CornerRadius="18"
-        HorizontalOptions="Fill"
-        VerticalOptions="Fill"
-        ZIndex="0"
-        Clicked="OnRepeatTimerClicked" />
-
-
-                            <!-- ОСНОВНОЙ БЛОК: перекрывает левую часть кнопки -->
+                            <!-- ОСНОВНОЙ БЛОК -->
                             <Border Grid.Column="0"
-                Margin="0,0,-18,0"
+                Margin="0"
                 StrokeThickness="0"
                 StrokeShape="RoundRectangle 18"
                 BackgroundColor="{AppThemeBinding Light=#EBEEF3, Dark=#4A5056}"
@@ -864,7 +821,7 @@
                                 StrokeShape="RoundRectangle 8"
                                 Padding="5">
 
-                            <Grid ColumnDefinitions="*,*"
+                            <Grid ColumnDefinitions="*,*,Auto"
                                   ColumnSpacing="5">
 
                                 <Button Grid.Column="0"
@@ -877,6 +834,10 @@
                                         Text="+1 День"
                                         Clicked="add1day" />
 
+                                <Button x:Name="NotificationTimerButton"
+                                        Text="🔁"
+                                        Grid.Column="2"
+                                        Clicked="OnRepeatTimerClicked" />
                             </Grid>
 
                         </Border>

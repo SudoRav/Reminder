@@ -1573,8 +1573,15 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             .SetSmallIcon(
                 Resource.Drawable.notification_icon)
 
-            .SetContentTitle(
-                reminder.Text)
+.SetContentTitle(
+    reminder.Group switch
+    {
+        1 => $"🟥 {reminder.Text}",
+        2 => $"🟨 {reminder.Text}",
+        3 => reminder.Text,
+        4 => $"🟦 {reminder.Text}",
+        _ => reminder.Text
+    })
 
             .SetContentText(
                 ReminderDisplayFormatter.GetDisplayText(
