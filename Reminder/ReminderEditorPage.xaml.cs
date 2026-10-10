@@ -3036,8 +3036,11 @@ public partial class ReminderEditorPage : ContentPage
         {
             if (editingNotification is not null)
             {
-                // Сохраняем длительность отдельно от даты оповещения.
-                editingNotification.TimerDuration = duration;
+                // 0 дн + 0 ч + 0 мин => повтор не задан (null, а не 00:00:00).
+                editingNotification.TimerDuration =
+                    duration == TimeSpan.Zero
+                        ? null
+                        : duration;
 
                 RequestAutoSave();
             }
@@ -3057,6 +3060,7 @@ public partial class ReminderEditorPage : ContentPage
         DateTime targetDateTime =
             GetCurrentMinute().Add(duration);
 
+
         // ========================================================
         // NotificationTimeItem
         // ========================================================
@@ -3066,25 +3070,33 @@ public partial class ReminderEditorPage : ContentPage
             editingNotification.Time =
                 targetDateTime;
 
+
             SortNotifications();
+
 
             NotificationTimesCollectionView.ItemsSource =
                 null;
 
+
             NotificationTimesCollectionView.ItemsSource =
                 notificationTimes;
+
 
             isUpdatingPickers =
                 true;
 
+
             OverlayDatePicker.Date =
                 targetDateTime.Date;
+
 
             OverlayTimePicker.Time =
                 targetDateTime.TimeOfDay;
 
+
             isUpdatingPickers =
                 false;
+
 
             UpdateSelectedDateTimeLabels();
 
@@ -3100,11 +3112,14 @@ public partial class ReminderEditorPage : ContentPage
 
             RequestAutoSave();
 
+
             TimerDurationOverlay.IsVisible =
                 false;
 
+
             return;
         }
+
 
         // ========================================================
         // Start / End
@@ -3122,17 +3137,22 @@ public partial class ReminderEditorPage : ContentPage
                 targetDateTime;
         }
 
+
         isUpdatingPickers =
             true;
+
 
         OverlayDatePicker.Date =
             targetDateTime.Date;
 
+
         OverlayTimePicker.Time =
             targetDateTime.TimeOfDay;
 
+
         isUpdatingPickers =
             false;
+
 
         UpdateSelectedDateTimeLabels();
 
@@ -3145,6 +3165,7 @@ public partial class ReminderEditorPage : ContentPage
         UpdateTimerFromCurrentTarget();
 
         RequestAutoSave();
+
 
         TimerDurationOverlay.IsVisible =
             false;

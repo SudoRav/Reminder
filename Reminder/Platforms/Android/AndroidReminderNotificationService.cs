@@ -905,7 +905,6 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     // SHOW OVERLAY
     // ============================================================
 
-    // ОСТАВЛЕН БЕЗ ИЗМЕНЕНИЙ ПО ВАШЕМУ ПРОСЬБЕ.
     internal static void ShowOverlay(
         Context context,
         ReminderItem reminder,
@@ -1133,6 +1132,117 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             new DateTimeOffset(deferredTime).ToUnixTimeMilliseconds(),
             pendingIntent);
 
+        MainThread.BeginInvokeOnMainThread(
+            () => NotifyNotificationTimeDeferred(reminderId));
+    }
+
+    /// <summary>
+    /// Повтор оповещения: после срабатывания NotificationTime с заданным
+    /// TimerDuration создаёт новое оповещение через TimerDuration
+    /// относительно времени срабатывания, с теми же настройками.
+    /// Новое оповещение тоже несёт TimerDuration, поэтому цикл продолжается.
+    /// </summary>
+    internal static void ScheduleRepeatedNotificationTime(
+        Context context,
+        int reminderId,
+        DateTime firedTime,
+        NotificationTimeSettings firedSettings)
+    {
+        if (firedSettings.TimerDuration is not TimeSpan duration ||
+            duration <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        const string remindersKey = "reminders";
+
+        JsonSerializerOptions jsonOptions =
+            new(JsonSerializerDefaults.Web);
+
+        List<ReminderItem> reminders =
+            LoadRemindersFromPreferences(
+                remindersKey,
+                jsonOptions);
+
+        ReminderItem? reminder =
+            reminders.FirstOrDefault(
+                item => item.Id == reminderId);
+
+        if (reminder is null ||
+            reminder.CompletedAt is not null)
+        {
+            return;
+        }
+
+        // Следующее время = время срабатывания + TimerDuration.
+        DateTime nextTime =
+            firedTime + duration;
+
+        // Если alarm сработал с большим опозданием (телефон был выключен),
+        // не создаём пачку оповещений в прошлом: сдвигаем на ближайший
+        // шаг цикла в будущем.
+        DateTime now =
+            DateTime.Now;
+
+        if (nextTime <= now)
+        {
+            long missedSteps =
+                ((now - nextTime).Ticks / duration.Ticks) + 1;
+
+            nextTime =
+                nextTime.AddTicks(
+                    duration.Ticks * missedSteps);
+        }
+
+        if (reminder.NotificationTimes.Contains(nextTime))
+        {
+            return;
+        }
+
+        NotificationTimeSettings nextSettings = new()
+        {
+            Time = nextTime,
+            TimerDuration = duration,
+            IsPushEnabled = firedSettings.IsPushEnabled,
+            IsOverlayEnabled = firedSettings.IsOverlayEnabled,
+            IsAlarmEnabled = firedSettings.IsAlarmEnabled
+        };
+
+        reminder.NotificationTimes.Add(nextTime);
+        reminder.NotificationTimes.Sort();
+
+        reminder.NotificationTimeSettings.RemoveAll(
+            settings => settings.Time == nextTime);
+
+        reminder.NotificationTimeSettings.Add(nextSettings);
+
+        reminder.NotificationTimeSettings.Sort(
+            (left, right) => left.Time.CompareTo(right.Time));
+
+        Preferences.Default.Set(
+            remindersKey,
+            JsonSerializer.Serialize(
+                reminders,
+                jsonOptions));
+
+        if (nextSettings.IsPushEnabled ||
+            nextSettings.IsOverlayEnabled ||
+            nextSettings.IsAlarmEnabled)
+        {
+            PendingIntent? pendingIntent =
+                CreateNotificationTimePendingIntent(
+                    context,
+                    reminderId,
+                    nextTime);
+
+            ScheduleNotificationTimeAlarm(
+                context,
+                new DateTimeOffset(nextTime).ToUnixTimeMilliseconds(),
+                pendingIntent);
+        }
+
+        // MainPage перечитывает список из хранилища (то же событие,
+        // что и при «Отложить»), чтобы не затереть новое время старыми данными.
         MainThread.BeginInvokeOnMainThread(
             () => NotifyNotificationTimeDeferred(reminderId));
     }
@@ -1797,6 +1907,10 @@ public sealed class DisplayEndReminderReceiver
 // NOTIFICATION TIME RECEIVER
 // ================================================================
 
+// ================================================================
+// NOTIFICATION TIME RECEIVER
+// ================================================================
+
 [BroadcastReceiver(
     Enabled = true,
     Exported = false)]
@@ -1862,6 +1976,40 @@ public sealed class OverlayReminderReceiver
                 DateTime.Now))
         {
             return;
+        }
+
+        /*
+         * ПОВТОР.
+         *
+         * Настройки читаем ДО ShowOverlay: он удаляет сработавшее
+         * NotificationTime из хранилища. Если у оповещения задан
+         * TimerDuration, создаём следующее оповещение с теми же
+         * настройками через TimerDuration от времени срабатывания.
+         */
+        if (notificationTime.HasValue)
+        {
+            NotificationTimeSettings firedSettings =
+                reminder.GetNotificationSettings(
+                    notificationTime.Value);
+
+            if (firedSettings.TimerDuration is TimeSpan duration &&
+                duration > TimeSpan.Zero)
+            {
+                try
+                {
+                    AndroidReminderNotificationService
+                        .ScheduleRepeatedNotificationTime(
+                            context,
+                            reminderId,
+                            notificationTime.Value,
+                            firedSettings);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine(
+                        $"Не удалось запланировать повтор оповещения {reminderId}: {ex}");
+                }
+            }
         }
 
         AndroidReminderNotificationService.ShowOverlay(
