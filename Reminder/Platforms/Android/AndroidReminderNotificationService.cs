@@ -1885,9 +1885,10 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     // PUSH
     // ============================================================
 
-    private static void ShowScheduledPushNotification(
-    Context context,
-    ReminderItem reminder)
+    internal static void ShowScheduledPushNotification(
+        Context context,
+        ReminderItem reminder,
+        int repeatIndex = 0)
     {
         DateTime now = DateTime.Now;
 
