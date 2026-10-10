@@ -43,6 +43,10 @@ namespace Reminder
             base.OnResume();
 
             StopActiveReminderAlarm();
+
+            // Открытие приложения останавливает повторы push.
+            AndroidReminderNotificationService
+                .CancelAllPushRepeats(this);
         }
 
         private void StopActiveReminderAlarm()

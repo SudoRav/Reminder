@@ -6,6 +6,7 @@ using Android.Media;
 using Android.OS;
 using Android.Provider;
 using Android.Runtime;
+using Android.Service.Notification;
 using Android.Views;
 using AndroidX.Core.App;
 using AndroidX.Core.Content;
@@ -34,8 +35,24 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
     // Через сколько push сам исчезнет, если пользователь его не тронул.
     // Нужен, чтобы звук не повторялся бесконечно.
-    private const long InsistentPushTimeoutMillis =
-        5 * 60 * 1000;
+    private const string PushRepeatAction =
+        "com.companyname.reminder.PUSH_REPEAT";
+
+    internal const string PushDismissedAction =
+        "com.companyname.reminder.PUSH_DISMISSED";
+
+    internal const string PushRepeatIndexExtra =
+        "push_repeat_index";
+
+    private const int PushRepeatRequestCodeOffset = 50_000;
+
+    private const int PushDismissedRequestCodeOffset = 60_000;
+
+    // Кулдаун между повторами push (1 минута).
+    internal const long PushRepeatIntervalMillis = 60_000;
+
+    // Максимум повторов: 30 штук = 30 минут.
+    internal const int PushRepeatMaxCount = 30;
 
     internal const string OverlayForegroundChannelId =
         "reminder_overlay_foreground";
@@ -971,6 +988,152 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
     }
 
     // ============================================================
+    // PUSH REPEAT (звук + вибрация раз в минуту)
+    // ============================================================
+
+    private static PendingIntent? CreatePushRepeatPendingIntent(
+        Context context,
+        int reminderId,
+        int repeatIndex)
+    {
+        Intent intent =
+            new(
+                context,
+                typeof(PushRepeatReceiver));
+
+        intent.SetAction(
+            PushRepeatAction);
+
+        intent.PutExtra(
+            ReminderIdExtra,
+            reminderId);
+
+        intent.PutExtra(
+            PushRepeatIndexExtra,
+            repeatIndex);
+
+        return PendingIntent.GetBroadcast(
+            context,
+            PushRepeatRequestCodeOffset + reminderId,
+            intent,
+            GetImmutableFlags());
+    }
+
+    private static void SchedulePushRepeat(
+        Context context,
+        int reminderId,
+        int nextRepeatIndex)
+    {
+        if (nextRepeatIndex > PushRepeatMaxCount)
+        {
+            return;
+        }
+
+        PendingIntent? pendingIntent =
+            CreatePushRepeatPendingIntent(
+                context,
+                reminderId,
+                nextRepeatIndex);
+
+        long triggerAtMillis =
+            DateTimeOffset.UtcNow
+                .ToUnixTimeMilliseconds() +
+            PushRepeatIntervalMillis;
+
+        ScheduleNotificationTimeAlarm(
+            context,
+            triggerAtMillis,
+            pendingIntent);
+    }
+
+    internal static void CancelPushRepeat(
+        Context context,
+        int reminderId)
+    {
+        AlarmManager alarmManager =
+            (AlarmManager)context.GetSystemService(
+                Context.AlarmService)!;
+
+        PendingIntent? pendingIntent =
+            CreatePushRepeatPendingIntent(
+                context,
+                reminderId,
+                0);
+
+        if (pendingIntent is null)
+        {
+            return;
+        }
+
+        alarmManager.Cancel(
+            pendingIntent);
+
+        pendingIntent.Cancel();
+    }
+
+    internal static bool IsPushNotificationActive(
+        Context context,
+        int reminderId)
+    {
+        if (Build.VERSION.SdkInt < BuildVersionCodes.M)
+        {
+            return true;
+        }
+
+        NotificationManager manager =
+            (NotificationManager)context.GetSystemService(
+                Context.NotificationService)!;
+
+        StatusBarNotification[]? active =
+            manager.GetActiveNotifications();
+
+        if (active is null)
+        {
+            return false;
+        }
+
+        int pushId =
+            PushNotificationIdOffset + reminderId;
+
+        foreach (StatusBarNotification item in active)
+        {
+            if (item.Id == pushId)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Открытие приложения: убираем все push и останавливаем повторы.
+    /// </summary>
+    internal static void CancelAllPushRepeats(
+        Context context)
+    {
+        NotificationManager manager =
+            (NotificationManager)context.GetSystemService(
+                Context.NotificationService)!;
+
+        List<ReminderItem> reminders =
+            LoadRemindersFromPreferences(
+                "reminders",
+                new JsonSerializerOptions(
+                    JsonSerializerDefaults.Web));
+
+        foreach (ReminderItem reminder in reminders)
+        {
+            CancelPushRepeat(
+                context,
+                reminder.Id);
+
+            manager.Cancel(
+                PushNotificationIdOffset + reminder.Id);
+        }
+    }
+
+    // ============================================================
     // SHOW OVERLAY
     // ============================================================
 
@@ -1467,6 +1630,13 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
 
         manager.Cancel(
             PermissionNotificationIdOffset + reminderId);
+
+        manager.Cancel(
+            PushNotificationIdOffset + reminderId);
+
+        CancelPushRepeat(
+            context,
+            reminderId);
     }
 
     internal static void CancelOverlayNotifications(
@@ -1747,6 +1917,26 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
                     reminder.Id),
                 flags);
 
+        // Смахивание уведомления останавливает повторы.
+        Intent dismissedIntent =
+            new(
+                context,
+                typeof(PushDismissedReceiver));
+
+        dismissedIntent.SetAction(
+            PushDismissedAction);
+
+        dismissedIntent.PutExtra(
+            ReminderIdExtra,
+            reminder.Id);
+
+        PendingIntent? deletePendingIntent =
+            PendingIntent.GetBroadcast(
+                context,
+                PushDismissedRequestCodeOffset + reminder.Id,
+                dismissedIntent,
+                flags);
+
         Notification notification =
             new NotificationCompat.Builder(
                 context,
@@ -1770,11 +1960,15 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             .SetContentIntent(
                 pendingIntent)
 
+            .SetDeleteIntent(
+                deletePendingIntent)
+
             // Push — самостоятельное одноразовое уведомление.
             // Кнопки "Завершить" здесь НЕТ.
-            // Тап или смахивание останавливают повтор звука.
             .SetOngoing(false)
             .SetAutoCancel(true)
+
+            // Каждый повтор должен снова издавать звук и вибрацию.
             .SetOnlyAlertOnce(false)
 
             .SetCategory(
@@ -1786,34 +1980,30 @@ public sealed class AndroidReminderNotificationService : IReminderNotificationSe
             .SetPriority(
                 NotificationCompat.PriorityHigh)
 
-            // Страховка: если пользователь не отреагировал,
-            // уведомление исчезнет само и звук прекратится.
-            .SetTimeoutAfter(
-                InsistentPushTimeoutMillis)
-
             .Build();
-
-        // Настойчивое уведомление: звук и вибрация повторяются,
-        // пока уведомление не открыто, не смахнуто и не отменено.
-        // У NotificationCompat.Builder нет сеттера для этого флага.
-        notification.Flags |=
-            NotificationFlags.Insistent;
 
         NotificationManagerCompat manager =
             NotificationManagerCompat.From(context);
 
-        if (manager.AreNotificationsEnabled())
+        if (!manager.AreNotificationsEnabled())
         {
-            /*
-             * Push — одноразовое уведомление.
-             *
-             * Используется отдельный ID,
-             * чтобы Push не заменял persistent notification.
-             */
-            manager.Notify(
-                PushNotificationIdOffset + reminder.Id,
-                notification);
+            return;
         }
+
+        /*
+         * Push — отдельный ID, чтобы он не заменял
+         * persistent notification. Повторная публикация с тем же ID
+         * заново проигрывает звук и вибрацию канала.
+         */
+        manager.Notify(
+            PushNotificationIdOffset + reminder.Id,
+            notification);
+
+        SchedulePushRepeat(
+            context,
+            reminder.Id,
+            repeatIndex + 1);
+
     }
 }
 
@@ -1978,6 +2168,110 @@ public sealed class DisplayEndReminderReceiver
                         .NotifyReminderCompleted(
                             reminderId));
         }
+    }
+}
+
+// ================================================================
+// PUSH REPEAT RECEIVER
+// ================================================================
+
+[BroadcastReceiver(
+    Enabled = true,
+    Exported = false)]
+public sealed class PushRepeatReceiver
+    : BroadcastReceiver
+{
+    public override void OnReceive(
+        Context? context,
+        Intent? intent)
+    {
+        if (context is null)
+        {
+            return;
+        }
+
+        int reminderId =
+            intent?.GetIntExtra(
+                AndroidReminderNotificationService.ReminderIdExtra,
+                0) ?? 0;
+
+        if (reminderId == 0)
+        {
+            return;
+        }
+
+        int repeatIndex =
+            intent?.GetIntExtra(
+                AndroidReminderNotificationService.PushRepeatIndexExtra,
+                1) ?? 1;
+
+        ReminderItem? reminder =
+            AndroidReminderNotificationService.LoadReminder(
+                reminderId);
+
+        if (reminder is null ||
+            reminder.CompletedAt is not null)
+        {
+            AndroidReminderNotificationService
+                .CancelVisibleNotifications(
+                    context,
+                    reminderId);
+
+            return;
+        }
+
+        // Если push уже убран из шторки (смахнут, очищена шторка,
+        // а DeleteIntent не пришёл), повторять нечего.
+        if (!AndroidReminderNotificationService
+                .IsPushNotificationActive(
+                    context,
+                    reminderId))
+        {
+            return;
+        }
+
+        AndroidReminderNotificationService
+            .ShowScheduledPushNotification(
+                context,
+                reminder,
+                repeatIndex);
+    }
+}
+
+
+// ================================================================
+// PUSH DISMISSED RECEIVER
+// ================================================================
+
+[BroadcastReceiver(
+    Enabled = true,
+    Exported = false)]
+public sealed class PushDismissedReceiver
+    : BroadcastReceiver
+{
+    public override void OnReceive(
+        Context? context,
+        Intent? intent)
+    {
+        if (context is null)
+        {
+            return;
+        }
+
+        int reminderId =
+            intent?.GetIntExtra(
+                AndroidReminderNotificationService.ReminderIdExtra,
+                0) ?? 0;
+
+        if (reminderId == 0)
+        {
+            return;
+        }
+
+        AndroidReminderNotificationService
+            .CancelPushRepeat(
+                context,
+                reminderId);
     }
 }
 
